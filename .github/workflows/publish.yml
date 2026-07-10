@@ -1,0 +1,64 @@
+# Release: npm (trusted publishing / OIDC + provenance) + MCP registry (GitHub OIDC).
+# Trigger: push a tag `vX.Y.Z` matching package.json's version.
+#
+# No tokens anywhere: npm auth is the trusted-publisher OIDC exchange (configured on
+# npmjs.com → package tersign → Settings → Trusted Publishing → this repo + this filename),
+# and the MCP registry authenticates the io.github.tersignhq namespace from the Actions
+# OIDC identity. Provenance is generated automatically (public repo).
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write # OIDC — required by both npm trusted publishing and mcp-publisher
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      # npm >= 11.5.1 is required for the trusted-publishing OIDC exchange
+      - run: npm install -g npm@latest && npm --version
+
+      - name: Guard - tag matches package.json version
+        run: |
+          PKG_V=$(node -p "require('./package.json').version")
+          TAG_V="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_V" != "$TAG_V" ]; then
+            echo "tag $GITHUB_REF_NAME != package.json version $PKG_V" >&2
+            exit 1
+          fi
+
+      - run: npm install
+      - run: npm test
+      - run: npm run build
+
+      - name: Publish to npm (trusted publishing, provenance)
+        run: npm publish
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: Publish to MCP registry
+        run: |
+          # The registry validates the npm package's mcpName field — give the npm
+          # registry a moment to serve the version that just published, then retry.
+          ./mcp-publisher login github-oidc
+          for i in 1 2 3 4 5; do
+            ./mcp-publisher publish && exit 0
+            echo "mcp publish attempt $i failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
