@@ -1,10 +1,16 @@
 # Release: npm (trusted publishing / OIDC + provenance) + MCP registry (GitHub OIDC).
-# Trigger: push a tag `vX.Y.Z` matching package.json's version.
+# Trigger: push a tag `vX.Y.Z` matching package.json's AND server.json's versions.
 #
 # No tokens anywhere: npm auth is the trusted-publisher OIDC exchange (configured on
 # npmjs.com → package tersign → Settings → Trusted Publishing → this repo + this filename),
 # and the MCP registry authenticates the io.github.tersignhq namespace from the Actions
 # OIDC identity. Provenance is generated automatically (public repo).
+#
+# Supply-chain posture: deps install from the COMMITTED lockfile with scripts disabled
+# (the job's OIDC identity IS the publish credential — no floating dep may execute);
+# npm is pinned to major 11 (>= 11.5.1 required for OIDC; never @latest into a publish
+# path); mcp-publisher is sha256-pinned (a version tag does not pin bytes). The npm step
+# is idempotent so the workflow is safely re-runnable after a partial publish.
 name: publish
 
 on:
@@ -27,37 +33,48 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
-      # npm >= 11.5.1 is required for the trusted-publishing OIDC exchange
-      - run: npm install -g npm@latest && npm --version
+      - run: npm install -g npm@11 && npm --version
 
-      - name: Guard - tag matches package.json version
+      - name: Guard - tag matches package.json + server.json versions
         run: |
-          PKG_V=$(node -p "require('./package.json').version")
           TAG_V="${GITHUB_REF_NAME#v}"
-          if [ "$PKG_V" != "$TAG_V" ]; then
-            echo "tag $GITHUB_REF_NAME != package.json version $PKG_V" >&2
-            exit 1
-          fi
+          for V in \
+            "$(node -p "require('./package.json').version")" \
+            "$(node -p "require('./server.json').version")" \
+            "$(node -p "require('./server.json').packages[0].version")"; do
+            if [ "$V" != "$TAG_V" ]; then
+              echo "version $V != tag $TAG_V" >&2
+              exit 1
+            fi
+          done
 
-      - run: npm install
+      - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run build
 
-      - name: Publish to npm (trusted publishing, provenance)
-        run: npm publish
-
-      - name: Install mcp-publisher
+      - name: Publish to npm (trusted publishing, provenance; idempotent for re-runs)
         run: |
-          curl -fsSL https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz | tar xz mcp-publisher
+          PKG_V=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "tersign@${PKG_V}" version 2>/dev/null)" ]; then
+            echo "tersign@${PKG_V} already on npm — skipping (re-run after partial publish)"
+          else
+            npm publish
+          fi
+
+      - name: Install mcp-publisher (sha256-pinned)
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz
+          echo "ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher --version
 
       - name: Publish to MCP registry
         run: |
           # The registry validates the npm package's mcpName field — give the npm
           # registry a moment to serve the version that just published, then retry.
-          ./mcp-publisher login github-oidc
+          # Login sits inside the loop so a transient OIDC failure retries too.
           for i in 1 2 3 4 5; do
-            ./mcp-publisher publish && exit 0
+            ./mcp-publisher login github-oidc && ./mcp-publisher publish && exit 0
             echo "mcp publish attempt $i failed; retrying in 30s"
             sleep 30
           done

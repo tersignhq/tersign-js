@@ -27,6 +27,7 @@
     "vitest": "^2.0.0"
   },
   "bin": {
+    "tersign": "dist/mcp/bin.js",
     "tersign-mcp": "dist/mcp/bin.js",
     "tersign-verify": "dist/verify-bin.js"
   },

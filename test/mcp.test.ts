@@ -4,7 +4,9 @@ import { Assure } from '../src/assure.js';
 import { verifyDispute } from '../src/dispute/sign.js';
 import type { SignedDispute } from '../src/dispute/types.js';
 import { issueReceiptTool, openDisputeTool, verifyReceiptTool, verifyRecordTool } from '../src/mcp/tools.js';
-import { buildServer } from '../src/mcp/server.js';
+import { buildServer, MCP_SERVER_IDENTITY } from '../src/mcp/server.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const account = privateKeyToAccount(generatePrivateKey());
 const deps = {
@@ -59,5 +61,17 @@ describe('MCP dispute tools', () => {
     await expect(
       openDisputeTool({ ...deps, signer: account }, { receiptDigest: `0x${'ab'.repeat(32)}`, reason: 'not_delivered', claimAmount: '1' }),
     ).rejects.toThrow('TERSIGN_LEDGER_URL');
+  });
+
+  it('MCP handshake identity matches package.json (name + version cannot drift on release)', () => {
+    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
+      name: string;
+      version: string;
+      bin: Record<string, string>;
+    };
+    expect(MCP_SERVER_IDENTITY.name).toBe(pkg.name);
+    expect(MCP_SERVER_IDENTITY.version).toBe(pkg.version);
+    // npx resolves the package-name-matching bin — the registry listing depends on it existing
+    expect(pkg.bin[pkg.name]).toBe('dist/mcp/bin.js');
   });
 });

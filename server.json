@@ -16,13 +16,6 @@
         "type": "stdio"
       },
       "runtimeHint": "npx",
-      "runtimeArguments": [
-        {
-          "type": "positional",
-          "value": "tersign-mcp",
-          "isRequired": true
-        }
-      ],
       "environmentVariables": [
         {
           "name": "TERSIGN_SELLER_KEY",
