@@ -1,0 +1,61 @@
+{
+  "name": "tersign",
+  "version": "0.1.1",
+  "description": "Tersign \u2014 the evidence layer for the agent economy. Counter-signed receipts, agent action records, idempotency enforcement, refunds, disputes, and jury-ready evidence envelopes for x402/agent-commerce sellers.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "viem": "^2.21.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "bin": {
+    "tersign-mcp": "dist/mcp/bin.js",
+    "tersign-verify": "dist/verify-bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/server.d.ts",
+      "import": "./dist/mcp/server.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tersignhq/tersign-js.git"
+  },
+  "homepage": "https://tersign-ledger.kevinn-zhang.workers.dev",
+  "keywords": [
+    "x402",
+    "agent-economy",
+    "evidence",
+    "receipts",
+    "eip-712",
+    "compliance",
+    "disputes",
+    "ai-agents",
+    "mcp",
+    "audit-trail"
+  ],
+  "mcpName": "io.github.tersignhq/evidence"
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tersignhq/evidence",
+  "description": "Tersign — the evidence layer for the agent economy. Issue counter-signed x402 receipts and agent action records, verify a counterparty's receipt with no trust, and produce dispute-ready evidence envelopes for arbitration venues (Internet Court, Kleros, UMA).",
+  "repository": {
+    "url": "https://github.com/tersignhq/tersign-js",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "tersign",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "npx",
+      "runtimeArguments": [
+        { "type": "positional", "value": "tersign-mcp", "isRequired": true }
+      ],
+      "environmentVariables": [
+        { "name": "TERSIGN_SELLER_KEY", "description": "0x-prefixed private key the seller signs receipts with", "isRequired": true, "isSecret": true, "format": "string" },
+        { "name": "TERSIGN_ISSUER_NAME", "description": "Seller/issuer display name", "isRequired": false, "format": "string" },
+        { "name": "TERSIGN_ISSUER_JURISDICTION", "description": "Seller jurisdiction (e.g. HK)", "isRequired": false, "format": "string" },
+        { "name": "TERSIGN_ISSUER_TAX_ID", "description": "Seller tax/business-registration id (optional)", "isRequired": false, "format": "string" },
+        { "name": "TERSIGN_LEDGER_URL", "description": "Hosted ledger base URL for counter-signing (optional; SDK works standalone)", "isRequired": false, "format": "string" },
+        { "name": "TERSIGN_LEDGER_API_KEY", "description": "Ledger seller API key (required only if counter-signing)", "isRequired": false, "isSecret": true, "format": "string" },
+        { "name": "TERSIGN_LEDGER_SELLER_ID", "description": "Ledger seller id (required only if counter-signing)", "isRequired": false, "format": "string" }
+      ]
+    }
+  ]
+}
