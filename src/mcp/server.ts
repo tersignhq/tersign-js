@@ -61,7 +61,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.1.1' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.1.2' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);

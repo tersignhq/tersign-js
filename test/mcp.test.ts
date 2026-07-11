@@ -71,7 +71,8 @@ describe('MCP dispute tools', () => {
     };
     expect(MCP_SERVER_IDENTITY.name).toBe(pkg.name);
     expect(MCP_SERVER_IDENTITY.version).toBe(pkg.version);
-    // npx resolves the package-name-matching bin — the registry listing depends on it existing
-    expect(pkg.bin[pkg.name]).toBe('dist/mcp/bin.js');
+    // npx resolves the package-name-matching bin — the registry listing depends on it existing;
+    // the dispatcher defaults to the MCP server so bare `npx tersign` keeps the registry contract
+    expect(pkg.bin[pkg.name]).toBe('dist/cli.js');
   });
 });

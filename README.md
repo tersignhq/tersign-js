@@ -16,7 +16,7 @@ npm install tersign
 - **Evidence envelopes** — package any counter-signed record into a jury-ready submission for external venues (Internet Court slot format, Kleros ERC-1497, UMA claims): digests + a public verify URL, never raw evidence, with party statements structurally segregated from ledger-attested content.
 - **Ledger client** — counter-signature + sequential hash-chaining + evidence-pack exports via the hosted Tersign ledger (optional; the SDK works standalone).
 - **MCP server** — `npx tersign-mcp` exposes the full loop (issue / verify / refund / dispute) as Model Context Protocol tools for agent frameworks.
-- **Third-party verification** — `npx tersign-verify <receipt.json | 0xdigest>` recovers signatures and checks the public chain with no account and no trust in Tersign.
+- **Third-party verification** — `npx tersign verify <receipt.json | 0xdigest>` recovers signatures and checks the public chain with no account and no trust in Tersign. (Installed: `tersign-verify` works directly.)
 
 ## Quick start
 
