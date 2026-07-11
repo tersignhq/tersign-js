@@ -52,9 +52,18 @@ if (/^0x[0-9a-f]{64}$/i.test(target)) {
   process.exit(0);
 }
 
-const parsed = JSON.parse(readFileSync(target, 'utf8')) as
-  | SignedReceipt
-  | { receipt: SignedReceipt; record?: SignedComplianceRecord };
+let raw: string;
+try {
+  raw = readFileSync(target, 'utf8');
+} catch {
+  fail(`cannot read '${target}' — pass a receipt JSON file that exists, or a 0x… digest with --ledger`);
+}
+let parsed: SignedReceipt | { receipt: SignedReceipt; record?: SignedComplianceRecord };
+try {
+  parsed = JSON.parse(raw) as typeof parsed;
+} catch {
+  fail(`'${target}' is not valid JSON — expected a signed receipt file`);
+}
 
 const receipt = 'payload' in parsed || 'signature' in parsed ? (parsed as SignedReceipt) : parsed.receipt;
 const record = 'receipt' in parsed ? parsed.record : undefined;
