@@ -1,55 +1,133 @@
-# tersign
+<p align="center">
+  <a href="https://tersign-ledger.kevinn-zhang.workers.dev"><img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/banner.svg" alt="Tersign — the evidence layer for the agent economy" width="760"></a>
+</p>
 
-**The evidence layer for the agent economy.** When software buys from software, someone has to keep the records straight — this SDK gives agent-commerce sellers counter-signed receipts, tamper-evident action records, and jury-ready evidence envelopes on top of x402 settlement.
+<p align="center">
+  <a href="https://www.npmjs.com/package/tersign"><img src="https://img.shields.io/npm/v/tersign?style=flat-square" alt="npm version"></a>
+  <a href="https://github.com/tersignhq/tersign-js/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/tersign?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/npm-provenance%20attested-2ea44f?style=flat-square" alt="npm provenance attested">
+  <img src="https://img.shields.io/badge/MCP%20registry-io.github.tersignhq%2Fevidence-1c1c1c?style=flat-square" alt="MCP registry">
+</p>
+
+**Tersign is the evidence layer for the agent economy** — a neutral, counter-signed, hash-chained ledger for agent commerce. Sellers sign EIP-712 receipts; Tersign chains them per seller and counter-signs every entry. When the dispute comes, the transcript is already sealed.
+
+> **Venues rotate. The transcript endures.**
+
+---
+
+## Verify a Real Entry — Right Now
+
+No account. No API key. This is the genesis receipt, `seq 1` on the production chain:
 
 ```sh
-npm install tersign
+npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign-ledger.kevinn-zhang.workers.dev
 ```
 
-## What it does
-
-- **Signed receipts** — implements the merged x402 `offer-receipt` extension (EIP-712), plus **compliance records** (tax/audit-grade fields: EU Art-226b minimal tier / EN 16931 full tier / HK IRO s.51C retention) bound to the base receipt by digest.
-- **Agent action records** — `ActionRecordV1`: digest-bound, GDPR-minimized evidence of agent actions and disclosures, mapped to EU AI Act Art-50 obligations.
-- **Idempotency enforcement** — the x402 `payment-identifier` extension ships the key; this ships the semantics (replay cache, `Idempotent-Replayed`, 409 in-flight/conflict) with pluggable stores (memory, Cloudflare D1).
-- **Refund orchestration** — corrective records hash-chained via `refundOf` (ViDA-style), ACP/UCP adjustment vocabulary verbatim.
-- **Disputes** — signed dispute/evidence/acceptance-criteria artifacts with objective reason codes; deterministic triage upstream of any arbitration venue.
-- **Evidence envelopes** — package any counter-signed record into a jury-ready submission for external venues (Internet Court slot format, Kleros ERC-1497, UMA claims): digests + a public verify URL, never raw evidence, with party statements structurally segregated from ledger-attested content.
-- **Ledger client** — counter-signature + sequential hash-chaining + evidence-pack exports via the hosted Tersign ledger (optional; the SDK works standalone).
-- **MCP server** — `npx tersign-mcp` exposes the full loop (issue / verify / refund / dispute) as Model Context Protocol tools for agent frameworks.
-- **Third-party verification** — `npx tersign verify <receipt.json | 0xdigest>` recovers signatures and checks the public chain with no account and no trust in Tersign. (Installed: `tersign-verify` works directly.)
-
-## Quick start
-
-```ts
-import { privateKeyToAccount } from 'viem/accounts';
-import { Assure, attachToExtensions } from 'tersign';
-
-const assure = new Assure({
-  signer: privateKeyToAccount(process.env.SELLER_KEY as `0x${string}`),
-  issuer: { name: 'Example API Ltd', jurisdiction: 'HK', taxId: 'BR-12345678' },
-  // ledger: { url: 'https://tersign-ledger.kevinn-zhang.workers.dev', apiKey: '…', sellerId: '…' },
-});
-
-// after your x402 middleware reports settlement:
-const issued = await assure.issueFor({
-  network: 'eip155:8453',
-  resourceUrl: 'https://api.example.com/data',
-  payer: settlement.payer,
-  settledAt: Math.floor(Date.now() / 1000),
-  txHash: settlement.transaction,
-  supplyDescription: 'Market data, per call',
-});
-return Response.json(attachToExtensions(body, issued));
+```text
+ledger: counter-signed OK (seller tersign-first, seq 1 …) VALID
 ```
 
-## Why not just the official x402 SDK?
+`npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**, then checks the entry against the public chain — yours or anyone's. Prefer raw HTTP? The same proof, no CLI:
 
-The official extension gives you the receipt *format*. This gives you the *operation*: replay enforcement (x402 #452 punts it to the app layer), refund records, compliance-grade fields your accountant recognizes, dispute-ready evidence — and third-party verifiability via counter-signed hash chains, so your receipts are exhibits, not testimony.
+```sh
+curl https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4/verify
+```
 
-## Verify without trusting anyone
+## Chain of Custody
 
-Every counter-signed record is publicly checkable: [live ledger + verification](https://tersign-ledger.kevinn-zhang.workers.dev/verify) — no account, no API key. Venues rotate; the transcript endures.
+Every entry takes the same path: the seller **signs** the receipt (EIP-712, x402 offer-receipt extension) → Tersign computes the **keccak256 canonical digest** → the digest joins that **seller's hash chain**, each `seq n` bound to `seq n−1` → the neutral ledger **counter-signs** (secp256k1) → **anyone verifies**, and any venue gets a serialized envelope.
 
-## Status
+```mermaid
+graph LR
+    A["agent transaction<br/>x402"] --> B["seller-signed receipt<br/>EIP-712"]
+    B --> C["canonical digest<br/>keccak256"]
+    C --> D["per-seller hash chain<br/>seq n binds seq n−1"]
+    D --> E["neutral counter-signature<br/>secp256k1 ledger"]
+    E --> F["verifiable by anyone<br/>venue-ready envelope"]
+```
 
-v0.1 — EIP-712 receipts, MINIMAL-tier compliance records, action records, disputes v0, evidence envelopes (Internet Court / Kleros / UMA), memory + D1 idempotency stores, MCP server, verify CLI. Wire formats are digest-bound and schema-evolvable; cross-implementation vectors are pinned in CI. MIT.
+<sub>Diagram renders on GitHub. On npm, the paragraph above IS the diagram.</sub>
+
+Refunds chain back to the original receipt via `refundOf`. Disputes attach to the digest with objective reason codes. Party statements are structurally segregated behind an `UNVERIFIED` marker — the evidence stays prompt-injection-hardened.
+
+## Enter the Record
+
+```sh
+npm i tersign
+```
+
+`withAssure()` wraps your x402 fetch handler so every paid call issues a signed, chained receipt. The full register:
+
+| Capability | In the record |
+|---|---|
+| Receipts | Seller-signed EIP-712 (x402 offer-receipt extension), keccak256 canonical digests |
+| `withAssure()` | x402 fetch-handler adapter — a receipt per paid call |
+| Compliance records | EU Art-226b minimal tier · EN 16931 full tier · HK IRO s.51C retention |
+| Action records | `ActionRecordV1` — GDPR-minimized, EU AI Act Art-50 mapped (Art 50 binds 2026-08-02) |
+| Refunds | Chained to the original receipt via `refundOf` |
+| Disputes v0 | Objective reason codes, evidence submission, adjudication |
+| Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
+| Evidence packs | `format=art50` · `format=safr` (beta) |
+| Idempotency | In-memory + Cloudflare D1 stores |
+
+## For Agents — the MCP Server
+
+`npx tersign` starts the MCP server (stdio). Official registry entry: `io.github.tersignhq/evidence` (active).
+
+```json
+{
+  "mcpServers": {
+    "tersign": {
+      "command": "npx",
+      "args": ["tersign"],
+      "env": { "TERSIGN_SELLER_KEY": "0x<your-seller-key>" }
+    }
+  }
+}
+```
+
+**Tools** — `issue_receipt` · `verify_receipt` · `verify_compliance_record` · `record_refund` · `open_dispute` · `submit_dispute_evidence` · `adjudicate_dispute` · `get_dispute`
+
+| Env var | Required | Purpose |
+|---|---|---|
+| `TERSIGN_SELLER_KEY` | yes | 0x-prefixed private key that signs your receipts and records |
+| `TERSIGN_LEDGER_URL` | no | hosted ledger for counter-signing + chain checks |
+| `TERSIGN_LEDGER_API_KEY` | no | your seller API key on that ledger |
+| `TERSIGN_LEDGER_SELLER_ID` | no | your seller id on that ledger |
+| `TERSIGN_ISSUER_NAME` | no | issuer name stamped on compliance records |
+| `TERSIGN_ISSUER_JURISDICTION` | no | issuer jurisdiction stamped on compliance records |
+
+Cold to counter-signed in one session: call `issue_receipt`, then check the issued receipt's digest with `npx tersign verify <digest> --ledger <url>`.
+
+The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.com/tersignhq/skills).
+
+## The Live Record
+
+- **Ledger + dashboard** — public verify page: https://tersign-ledger.kevinn-zhang.workers.dev/verify
+- **Census** — 1,500+ hash-chained observations across 1,000+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://tersign-prober.kevinn-zhang.workers.dev/v1/prober/stats
+
+## Machine Surfaces
+
+Full URLs, readable without auth. If you are an agent, start here.
+
+| Surface | Address |
+|---|---|
+| npm package | `tersign` — https://www.npmjs.com/package/tersign |
+| MCP registry | `io.github.tersignhq/evidence` |
+| ARD catalog (Agentic Resource Discovery) | https://tersign-ledger.kevinn-zhang.workers.dev/.well-known/ai-catalog.json |
+| Verify API | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/verify` |
+| Envelope API | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
+| Ledger stats | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/stats` |
+| Ledger signer | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/ledger` |
+| llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
+| Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign-ledger.kevinn-zhang.workers.dev` |
+
+---
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/seal.svg" alt="Tersign seal" width="72">
+</p>
+
+<p align="center"><sub>MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · <code>tersign</code> reserved on PyPI</sub></p>
+
+<p align="center"><sub><b>Venues rotate. The transcript endures.</b></sub></p>
