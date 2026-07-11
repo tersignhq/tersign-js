@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://tersign-ledger.kevinn-zhang.workers.dev"><img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/banner.svg" alt="Tersign — the evidence layer for the agent economy" width="760"></a>
+  <a href="https://tersign.ai"><img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/banner.svg" alt="Tersign — the evidence layer for the agent economy" width="760"></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 No account. No API key. This is the genesis receipt, `seq 1` on the production chain:
 
 ```sh
-npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign-ledger.kevinn-zhang.workers.dev
+npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai
 ```
 
 ```text
@@ -30,7 +30,7 @@ ledger: counter-signed OK (seller tersign-first, seq 1 …) VALID
 `npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**, then checks the entry against the public chain — yours or anyone's. Prefer raw HTTP? The same proof, no CLI:
 
 ```sh
-curl https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4/verify
+curl https://tersign.ai/v1/receipts/0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4/verify
 ```
 
 ## Chain of Custody
@@ -103,8 +103,8 @@ The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.co
 
 ## The Live Record
 
-- **Ledger + dashboard** — public verify page: https://tersign-ledger.kevinn-zhang.workers.dev/verify
-- **Census** — 1,500+ hash-chained observations across 1,000+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://tersign-prober.kevinn-zhang.workers.dev/v1/prober/stats
+- **Ledger + dashboard** — public verify page: https://tersign.ai/verify
+- **Census** — 1,500+ hash-chained observations across 1,000+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://prober.tersign.ai/v1/prober/stats
 
 ## Machine Surfaces
 
@@ -114,13 +114,13 @@ Full URLs, readable without auth. If you are an agent, start here.
 |---|---|
 | npm package | `tersign` — https://www.npmjs.com/package/tersign |
 | MCP registry | `io.github.tersignhq/evidence` |
-| ARD catalog (Agentic Resource Discovery) | https://tersign-ledger.kevinn-zhang.workers.dev/.well-known/ai-catalog.json |
-| Verify API | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/verify` |
-| Envelope API | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
-| Ledger stats | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/stats` |
-| Ledger signer | `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/ledger` |
+| ARD catalog (Agentic Resource Discovery) | https://tersign.ai/.well-known/ai-catalog.json |
+| Verify API | `GET https://tersign.ai/v1/receipts/{digest}/verify` |
+| Envelope API | `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
+| Ledger stats | `GET https://tersign.ai/v1/stats` |
+| Ledger signer | `GET https://tersign.ai/v1/ledger` |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
-| Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign-ledger.kevinn-zhang.workers.dev` |
+| Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai` |
 
 ---
 

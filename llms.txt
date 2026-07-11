@@ -6,12 +6,12 @@
 
 Package: `tersign` (npm, MIT, provenance-attested). Install: `npm i tersign`.
 MCP server: `io.github.tersignhq/evidence` (official MCP registry); start with `npx tersign`.
-ARD catalog: https://tersign-ledger.kevinn-zhang.workers.dev/.well-known/ai-catalog.json
+ARD catalog: https://tersign.ai/.well-known/ai-catalog.json
 
 ## Verify something real right now
 
 ```
-npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign-ledger.kevinn-zhang.workers.dev
+npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai
 ```
 
 That digest is a live counter-signed record (seller `tersign-first`, seq 1). The command recovers
@@ -19,11 +19,11 @@ the EIP-712 signature locally and checks the counter-signed hash chain against t
 
 ## Public APIs (no auth)
 
-- Verify: `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/verify`
-- Dispute evidence envelope: `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/receipts/{digest}/envelope?venue={generic|internet-court|kleros|uma}`
-- Ledger signer: `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/ledger`
-- Traction stats: `GET https://tersign-ledger.kevinn-zhang.workers.dev/v1/stats`
-- Live x402 census: `GET https://tersign-prober.kevinn-zhang.workers.dev/v1/prober/stats`
+- Verify: `GET https://tersign.ai/v1/receipts/{digest}/verify`
+- Dispute evidence envelope: `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={generic|internet-court|kleros|uma}`
+- Ledger signer: `GET https://tersign.ai/v1/ledger`
+- Traction stats: `GET https://tersign.ai/v1/stats`
+- Live x402 census: `GET https://prober.tersign.ai/v1/prober/stats`
 
 ## MCP server configuration
 
@@ -37,7 +37,7 @@ submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
 - [SDK README](https://github.com/tersignhq/tersign-js/blob/main/README.md): install, quick start, API surface
 - [Agent skill: tersign-evidence](https://github.com/tersignhq/skills/blob/main/tersign-evidence/SKILL.md): produce/verify/submit evidence from any agent framework
-- [Live ledger + human verification page](https://tersign-ledger.kevinn-zhang.workers.dev)
+- [Live ledger + human verification page](https://tersign.ai)
 
 ## Trust model
 
