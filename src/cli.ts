@@ -15,6 +15,18 @@ const sub = process.argv[2];
 
 if (sub === undefined || sub === 'mcp') {
   if (sub === 'mcp') process.argv.splice(2, 1);
+  // Bare `npx tersign` with no config is almost always a curious human, not an MCP client —
+  // greet them with the wiring instructions instead of a stack trace.
+  if (!process.env.TERSIGN_SELLER_KEY) {
+    console.error(
+      'tersign: this command starts the MCP server, which needs TERSIGN_SELLER_KEY set.\n\n' +
+        'Wire it into your MCP client config:\n' +
+        '  { "mcpServers": { "tersign": { "command": "npx", "args": ["tersign"],\n' +
+        '      "env": { "TERSIGN_SELLER_KEY": "0x<your-seller-key>" } } } }\n\n' +
+        "Just exploring? Try:  tersign help   ·   tersign verify <receipt.json | 0xdigest> [--ledger url]",
+    );
+    process.exit(1);
+  }
   await import('./mcp/bin.js');
 } else if (sub === 'verify') {
   process.argv.splice(2, 1);
