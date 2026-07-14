@@ -1,6 +1,6 @@
 {
   "name": "tersign",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Tersign \u2014 the evidence layer for the agent economy. Counter-signed receipts, agent action records, idempotency enforcement, refunds, disputes, and jury-ready evidence envelopes for x402/agent-commerce sellers.",
   "license": "MIT",
   "type": "module",
@@ -49,14 +49,20 @@
   "keywords": [
     "x402",
     "agent-economy",
+    "agentic-commerce",
     "evidence",
     "receipts",
     "eip-712",
+    "rfc-8785",
+    "hash-chain",
     "compliance",
+    "eu-ai-act",
+    "audit-trail",
     "disputes",
+    "refunds",
+    "idempotency",
     "ai-agents",
-    "mcp",
-    "audit-trail"
+    "mcp"
   ],
   "mcpName": "io.github.tersignhq/evidence"
 }

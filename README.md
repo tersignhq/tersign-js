@@ -104,7 +104,9 @@ The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.co
 ## The Live Record
 
 - **Ledger + dashboard** — public verify page: https://tersign.ai/verify
-- **Census** — 1,500+ hash-chained observations across 1,000+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://prober.tersign.ai/v1/prober/stats
+- **Census** — 2,500+ hash-chained observations across 1,100+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://prober.tersign.ai/v1/prober/stats
+- **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, byte-level cross-implementation vectors published in-repo. Reproduce the bytes and your implementation is conformant — in any language.
+- **Standards** — the `compliance-fields` extension (optional tax/audit records composing with offer-receipt) is proposed upstream: [x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)
 
 ## Machine Surfaces
 
@@ -120,6 +122,8 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Ledger stats | `GET https://tersign.ai/v1/stats` |
 | Ledger signer | `GET https://tersign.ai/v1/ledger` |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
+| Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
+| Sample compliance record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
 | Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai` |
 
 ---
