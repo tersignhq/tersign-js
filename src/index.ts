@@ -13,6 +13,7 @@ export {
 export {
   COMPLIANCE_DOMAIN,
   COMPLIANCE_TYPES,
+  COMPLIANCE_WIRE_VECTOR,
   buildMinimalRecord,
   recordDigest,
   signComplianceRecord,

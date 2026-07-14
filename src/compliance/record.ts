@@ -10,7 +10,10 @@ import type {
   VerifyLike,
 } from './types.js';
 
-export const COMPLIANCE_DOMAIN = { name: 'tersign compliance-record', version: '1', chainId: 1n } as const;
+/** Canonical domain per the compliance-fields extension spec (x402-foundation/x402#2853).
+ * Migrated from the vendor domain 'tersign compliance-record' on 2026-07-14 while ZERO
+ * production compliance records existed — a free change then, a breaking wire change after. */
+export const COMPLIANCE_DOMAIN = { name: 'compliance-fields', version: '1', chainId: 1n } as const;
 
 export const COMPLIANCE_TYPES = {
   ComplianceAttestation: [
@@ -20,6 +23,14 @@ export const COMPLIANCE_TYPES = {
     { name: 'issuedAt', type: 'uint256' },
   ],
 } as const;
+
+/** Pinned digest of the compliance-attestation EIP-712 material (like DISPUTE_WIRE_VECTOR).
+ * No cross-impl twin yet — the ledger does not re-declare this domain — but the pin catches
+ * accidental drift; any change is a breaking protocol change (frozen wire format). */
+export const COMPLIANCE_WIRE_VECTOR: `0x${string}` = digestOf({
+  domain: { ...COMPLIANCE_DOMAIN, chainId: 1 },
+  types: COMPLIANCE_TYPES,
+});
 
 export interface IssuerConfig {
   name: string;

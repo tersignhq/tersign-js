@@ -78,3 +78,10 @@ describe('compliance record', () => {
     expect(recordDigest(refund)).not.toBe(recordDigest(original));
   });
 });
+
+describe('frozen wire format', () => {
+  it('matches the pinned compliance wire vector (spec-canonical domain, PR #2853)', async () => {
+    const { COMPLIANCE_WIRE_VECTOR } = await import('../src/compliance/record.js');
+    expect(COMPLIANCE_WIRE_VECTOR).toBe('0xaf3e5ebc19f8679adca15beb48356028aa46e220cf2e744cd8797c0bba1beabd');
+  });
+});
