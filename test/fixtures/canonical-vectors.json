@@ -1,0 +1,50 @@
+{
+  "description": "Cross-implementation canonicalization conformance vectors. Serialization: RFC 8785 (JCS) — keys sorted by UTF-16 code units, no whitespace, JSON.stringify scalar/escape semantics. Digest: keccak256 over the UTF-8 bytes of the canonical string. Any conformant implementation, in any language, must reproduce these canonical strings and digests byte-for-byte.",
+  "canonicalizationVersion": 1,
+  "digest": "keccak256(utf8(canonical))",
+  "vectors": [
+    {
+      "name": "key-order",
+      "input": { "b": "x", "a": 1 },
+      "canonical": "{\"a\":1,\"b\":\"x\"}",
+      "digest": "0x84fc3d9faf736ddfdb9baab9973656bd8d9bd142f1dfff8aa513a774fddfdd04"
+    },
+    {
+      "name": "integer-like-keys",
+      "note": "The tripwire for object-rebuild implementations: JS engines hoist integer-like keys into numeric order on insertion. JCS orders by UTF-16 code units: \"1\" < \"10\" < \"2\".",
+      "input": { "10": "a", "2": "b", "1": "c" },
+      "canonical": "{\"1\":\"c\",\"10\":\"a\",\"2\":\"b\"}",
+      "digest": "0x426b770f81b8ad5e307bcfb767deb02f8d32cd340d81a946be88bb184857e81b"
+    },
+    {
+      "name": "control-char-key",
+      "input": { "1": "One", "\r": "CR" },
+      "canonical": "{\"\\r\":\"CR\",\"1\":\"One\"}",
+      "digest": "0x5d6584d0515e0c7bd150badc6da1a0806876dd533504541fda6ecdb8bfdb7f08"
+    },
+    {
+      "name": "nested-sort",
+      "input": { "z": { "y": 1, "a": 2 }, "a": [{ "c": 1, "b": 2 }] },
+      "canonical": "{\"a\":[{\"b\":2,\"c\":1}],\"z\":{\"a\":2,\"y\":1}}",
+      "digest": "0xdb50d18f554a18debc39e1dc5198c406fb3d0d776186863e2abc34b5261dae96"
+    },
+    {
+      "name": "literals-and-numbers",
+      "input": { "lit": [null, true, false], "n": [1, 1.5, 1e30, 1e-7, 0.1] },
+      "canonical": "{\"lit\":[null,true,false],\"n\":[1,1.5,1e+30,1e-7,0.1]}",
+      "digest": "0x168d05202ea71c1585d546e0ac66f084428eb1873883b26f3249d45b1cc47c26"
+    },
+    {
+      "name": "unicode-keys",
+      "input": { "aä": 1, "aå": 2, "aa": 3, "A": 4 },
+      "canonical": "{\"A\":4,\"aa\":3,\"aä\":1,\"aå\":2}",
+      "digest": "0xb881675b98f132e5ad6ac22c2b7cd0f8b780e9b5f7d7dc9649aa4492f7ee6d3c"
+    },
+    {
+      "name": "empty-containers",
+      "input": { "a": {}, "b": [], "c": "" },
+      "canonical": "{\"a\":{},\"b\":[],\"c\":\"\"}",
+      "digest": "0x9474988e0b5211d5c1f33102e30add5c077a7e6d5d62cd2d381ffe44244b26c4"
+    }
+  ]
+}

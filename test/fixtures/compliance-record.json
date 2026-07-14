@@ -1,0 +1,15 @@
+{
+  "description": "Sample MINIMAL-tier compliance record (compliance-fields extension) with its canonical form and digests. receiptDigest binds to the live Tersign genesis receipt — verify it yourself: npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai",
+  "record": {
+    "version": 1,
+    "canonicalizationVersion": 1,
+    "receiptDigest": "0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4",
+    "issuedAt": 1783761711,
+    "issuer": { "name": "Tersign Fixtures", "jurisdiction": "HK IRO-51C" },
+    "supply": { "description": "canonical conformance fixture — not a real supply" },
+    "tax": { "scheme": "none", "currency": "USD" },
+    "retentionYears": 7
+  },
+  "canonical": "{\"canonicalizationVersion\":1,\"issuedAt\":1783761711,\"issuer\":{\"jurisdiction\":\"HK IRO-51C\",\"name\":\"Tersign Fixtures\"},\"receiptDigest\":\"0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4\",\"retentionYears\":7,\"supply\":{\"description\":\"canonical conformance fixture — not a real supply\"},\"tax\":{\"currency\":\"USD\",\"scheme\":\"none\"},\"version\":1}",
+  "recordDigest": "0xdae85bd46040d4d232bda0395bc6e4bd549641812ddf96039c05a74061d78935"
+}
