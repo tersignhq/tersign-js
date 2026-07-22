@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tersignhq/evidence",
-  "description": "Evidence records for agent commerce: sign receipts and action records into per-seller hash-chains, verify any record offline from its bytes, build dispute evidence envelopes. Works standalone; optional hosted-ledger counter-signing with Bitcoin-anchored existence bounds. Conformance vectors: github.com/tersignhq/evidence-record-conformance",
+  "description": "Counter-signed evidence records for agent commerce: receipts, verification, dispute envelopes.",
   "repository": {
     "url": "https://github.com/tersignhq/tersign-js",
     "source": "github"
   },
-  "version": "0.1.9",
+  "version": "0.1.10",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tersign",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "transport": {
         "type": "stdio"
       },
@@ -63,5 +63,39 @@
         }
       ]
     }
-  ]
+  ],
+  "title": "Tersign Evidence",
+  "websiteUrl": "https://tersign.ai",
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "license": "MIT",
+      "categories": [
+        "finance",
+        "security"
+      ],
+      "summary": "Tersign is the evidence layer for agent commerce (B2B / machine-to-machine). Agents issue seller-signed EIP-712 receipts and action records; the hosted ledger at https://tersign.ai optionally counter-signs them into per-seller hash chains that anyone can verify without an account. Disputes export as venue-ready evidence envelopes (generic / internet-court / kleros / uma). The SDK and MCP server work fully standalone without the hosted ledger: issue and verify offline, counter-sign later. Record shapes are pinned by public conformance vectors: https://github.com/tersignhq/evidence-record-conformance (Apache-2.0, CI-tested). Verify a live counter-signed record right now: npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai",
+      "tags": [
+        "evidence",
+        "receipts",
+        "counter-signing",
+        "agent-commerce",
+        "agent-payments",
+        "x402",
+        "disputes",
+        "eip-712",
+        "audit-trail",
+        "verification"
+      ],
+      "tools": [
+        "issue_receipt",
+        "verify_receipt",
+        "verify_compliance_record",
+        "record_refund",
+        "open_dispute",
+        "submit_dispute_evidence",
+        "adjudicate_dispute",
+        "get_dispute"
+      ]
+    }
+  }
 }
