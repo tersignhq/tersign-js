@@ -56,3 +56,5 @@ object-rebuild implementations get wrong) live at
 a sample MINIMAL compliance record with its digests at
 [test/fixtures/compliance-record.json](https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json).
 Reproduce these bytes and digests and your implementation is conformant.
+
+- Evidence-record conformance suite (two-sided vectors: independence, completeness, existence, phase): https://github.com/tersignhq/evidence-record-conformance

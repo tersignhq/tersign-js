@@ -135,3 +135,5 @@ Full URLs, readable without auth. If you are an agent, start here.
 <p align="center"><sub>MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · <code>tersign</code> reserved on PyPI</sub></p>
 
 <p align="center"><sub><b>Venues rotate. The transcript endures.</b></sub></p>
+
+- Evidence-record conformance suite (two-sided vectors: independence, completeness, existence, phase): https://github.com/tersignhq/evidence-record-conformance

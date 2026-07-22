@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tersignhq/evidence",
-  "description": "Evidence layer for agent commerce: signed receipts, verification, dispute evidence envelopes.",
+  "description": "Evidence records for agent commerce: sign receipts and action records into per-seller hash-chains, verify any record offline from its bytes, build dispute evidence envelopes. Works standalone; optional hosted-ledger counter-signing with Bitcoin-anchored existence bounds. Conformance vectors: github.com/tersignhq/evidence-record-conformance",
   "repository": {
     "url": "https://github.com/tersignhq/tersign-js",
     "source": "github"
   },
-  "version": "0.1.8",
+  "version": "0.1.9",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tersign",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "transport": {
         "type": "stdio"
       },
