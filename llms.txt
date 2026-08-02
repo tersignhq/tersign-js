@@ -35,6 +35,7 @@ submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
 ## Docs
 
+- [Why independence — a log about yourself isn't evidence](https://tersign.ai/independence)
 - [SDK README](https://github.com/tersignhq/tersign-js/blob/main/README.md): install, quick start, API surface
 - [Agent skill: tersign-evidence](https://github.com/tersignhq/skills/blob/main/tersign-evidence/SKILL.md): produce/verify/submit evidence from any agent framework
 - [Live ledger + human verification page](https://tersign.ai)

@@ -63,7 +63,7 @@ npm i tersign
 | Receipts | Seller-signed EIP-712 (x402 offer-receipt extension), keccak256 canonical digests |
 | `withAssure()` | x402 fetch-handler adapter — a receipt per paid call |
 | Compliance records | EU Art-226b minimal tier · EN 16931 full tier · HK IRO s.51C retention |
-| Action records | `ActionRecordV1` — GDPR-minimized, EU AI Act Art-50 mapped (Art 50 binds 2026-08-02) |
+| Action records | `ActionRecordV1` — GDPR-minimized; captures the content of an Art-50 disclosure so the disclosure itself is independently attested, not self-reported |
 | Refunds | Chained to the original receipt via `refundOf` |
 | Disputes v0 | Objective reason codes, evidence submission, adjudication |
 | Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
@@ -104,8 +104,8 @@ The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.co
 ## The Live Record
 
 - **Ledger + dashboard** — public verify page: https://tersign.ai/verify
-- **Census** — 2,500+ hash-chained observations across 1,100+ x402 seller endpoints, probed hourly and autonomously. Live counts: https://prober.tersign.ai/v1/prober/stats
-- **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, byte-level cross-implementation vectors published in-repo. Reproduce the bytes and your implementation is conformant — in any language.
+- **Census** — hash-chained observations across the live x402 seller catalog, probed autonomously; the numbers are served live, never quoted stale: https://prober.tersign.ai/v1/prober/stats
+- **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, and the public two-sided vector suite (independence, completeness, existence, phase): [tersignhq/evidence-record-conformance](https://github.com/tersignhq/evidence-record-conformance). Reproduce the bytes and your implementation is conformant — in any language.
 - **Standards** — the `compliance-fields` extension (optional tax/audit records composing with offer-receipt) is proposed upstream: [x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)
 
 ## Machine Surfaces
@@ -136,4 +136,3 @@ Full URLs, readable without auth. If you are an agent, start here.
 
 <p align="center"><sub><b>Venues rotate. The transcript endures.</b></sub></p>
 
-- Evidence-record conformance suite (two-sided vectors: independence, completeness, existence, phase): https://github.com/tersignhq/evidence-record-conformance
