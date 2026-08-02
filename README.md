@@ -106,7 +106,7 @@ The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.co
 - **Ledger + dashboard** — public verify page: https://tersign.ai/verify
 - **Census** — hash-chained observations across the live x402 seller catalog, probed autonomously; the numbers are served live, never quoted stale: https://prober.tersign.ai/v1/prober/stats
 - **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, and the public two-sided vector suite (independence, completeness, existence, phase): [tersignhq/evidence-record-conformance](https://github.com/tersignhq/evidence-record-conformance). Reproduce the bytes and your implementation is conformant — in any language.
-- **Standards** — the `compliance-fields` extension (optional tax/audit records composing with offer-receipt) is proposed upstream: [x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)
+- **Standards** — the `compliance-fields` extension — a typed compliance-record schema plus three evaluator-side disqualifications (independence, completeness/existence, economic-phase separation), each executable as a two-sided conformance vector — is under review upstream ([x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)) and referenced in the x402 TSC's evidence-record charter agenda ([tsc#4](https://github.com/x402-foundation/tsc/issues/4)). The merged offer-receipt spec already carries the completeness criterion at SHOULD strength (§4.5.1, [#2811](https://github.com/x402-foundation/x402/pull/2811)).
 
 ## Machine Surfaces
 
