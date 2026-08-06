@@ -82,6 +82,7 @@ export {
   type ActionAttestationPayload,
   type SignedActionRecord,
 } from './evidence/action.js';
+export { recordDisclosure, type RecordDisclosureOptions, type RecordDisclosureResult } from './evidence/disclose.js';
 export { LedgerClient, type LedgerConfig, type CountersignResult } from './ledgerClient.js';
 export { Assure, attachToExtensions, type AssureConfig, type SettlementContext, type IssuedReceipt } from './assure.js';
 export { withAssure, extractSettlement, extractPaymentPayload, type WithAssureConfig, type SettlementInfo } from './adapter/x402.js';

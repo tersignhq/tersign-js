@@ -6,12 +6,12 @@
     "url": "https://github.com/tersignhq/tersign-js",
     "source": "github"
   },
-  "version": "0.1.12",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tersign",
-      "version": "0.1.12",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },

@@ -31,13 +31,19 @@ if (sub === undefined || sub === 'mcp') {
 } else if (sub === 'verify') {
   process.argv.splice(2, 1);
   await import('./verify-bin.js');
+} else if (sub === 'disclose') {
+  process.argv.splice(2, 1);
+  await import('./disclose-bin.js');
 } else if (sub === 'help' || sub === '--help' || sub === '-h') {
   console.log(
     'tersign — evidence layer for the agent economy\n\n' +
       '  tersign                 start the MCP server (stdio)\n' +
       '  tersign mcp             same, explicit\n' +
       '  tersign verify <receipt.json | 0xdigest> [--signer 0xaddr] [--ledger url]\n' +
-      '                          verify a receipt: local signature recovery + public chain check\n',
+      '                          verify a receipt: local signature recovery + public chain check\n' +
+      '  tersign disclose "<text>" [--medium chat] [--agent-id id] [--url resourceUrl]\n' +
+      '                          counter-signed disclosure evidence — text digested locally,\n' +
+      '                          only the digest travels; key created on first use\n',
   );
 } else {
   console.error(`unknown subcommand '${sub}' — did you mean: tersign verify ${sub}\nrun 'tersign help' for usage`);

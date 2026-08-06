@@ -9,6 +9,7 @@ import {
   getDisputeTool,
   issueReceiptTool,
   openDisputeTool,
+  recordDisclosureTool,
   recordRefundTool,
   submitEvidenceTool,
   verifyReceiptTool,
@@ -61,7 +62,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.1.12' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.2.0' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);
@@ -98,6 +99,24 @@ export function buildServer(deps: McpDeps): McpServer {
       },
     },
     async ({ artifact, expectedSigner }) => json(await verifyReceiptTool(artifact as unknown as SignedReceipt, expectedSigner)),
+  );
+
+  server.registerTool(
+    'record_disclosure',
+    {
+      title: 'Record counter-signed disclosure',
+      description:
+        'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. No API key needed — first call self-provisions a free signer-keyed account.',
+      inputSchema: {
+        text: z.string().optional().describe('the disclosure text as presented — digested locally, never transmitted'),
+        textDigest: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional().describe('pre-computed digest (wins over text)'),
+        medium: z.string().optional().describe("channel: 'chat' | 'api' | 'voice' | 'ui' …"),
+        kind: z.enum(['ai-interaction', 'synthetic-content']).optional(),
+        agentId: z.string().describe('stable identifier for the disclosing agent'),
+        resourceUrl: z.string().url().optional(),
+      },
+    },
+    async (args) => json(await recordDisclosureTool(deps, args as Parameters<typeof recordDisclosureTool>[1])),
   );
 
   server.registerTool(

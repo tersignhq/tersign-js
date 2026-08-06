@@ -139,3 +139,30 @@ export async function getDisputeTool(deps: McpDeps, disputeDigest: `0x${string}`
   if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
   return ledgerFetch(deps.ledgerHttp.url, `/v1/disputes/${disputeDigest}`);
 }
+
+export interface RecordDisclosureArgs {
+  text?: string | undefined;
+  textDigest?: `0x${string}` | undefined;
+  medium?: string | undefined;
+  kind?: 'ai-interaction' | 'synthetic-content' | undefined;
+  agentId: string;
+  resourceUrl?: string | undefined;
+}
+
+/** One-call counter-signed disclosure (public wedge route — no API key needed; the ledger
+ * defaults to the hosted instance). The text is digested locally; only the digest travels. */
+export async function recordDisclosureTool(deps: McpDeps, args: RecordDisclosureArgs) {
+  if (!deps.signer) throw new Error('no signing key configured');
+  const { recordDisclosure } = await import('../evidence/disclose.js');
+  return recordDisclosure({
+    ...(args.text !== undefined ? { text: args.text } : {}),
+    ...(args.textDigest !== undefined ? { textDigest: args.textDigest } : {}),
+    ...(args.medium !== undefined ? { medium: args.medium } : {}),
+    ...(args.kind !== undefined ? { kind: args.kind } : {}),
+    agentId: args.agentId,
+    ...(args.resourceUrl !== undefined ? { resourceUrl: args.resourceUrl } : {}),
+    ledger: deps.ledgerHttp?.url ?? 'https://tersign.ai',
+    account: deps.signer,
+    ...(deps.clock ? { clock: deps.clock } : {}),
+  });
+}

@@ -19,6 +19,12 @@ the EIP-712 signature locally and checks the counter-signed hash chain against t
 
 ## Public APIs (no auth)
 
+- One-call disclosure evidence: `POST https://tersign.ai/v1/disclose` body `{"artifact": <SignedActionRecord>}`
+  (action.kind 'disclosure'; signer-keyed — first call self-provisions a free wedge account;
+  rate limits at https://tersign.ai/pricing). CLI: `npx tersign disclose "<text>" --agent-id my-agent`
+  — text digested locally, only the digest travels.
+- Wedge data rights: `POST /v1/wedge/export` and `POST /v1/wedge/erase`, authenticated by a
+  personal_sign over `tersign-data-rights-v1:<action>[:digest]:<unixNow>` from the chain's key.
 - Verify: `GET https://tersign.ai/v1/receipts/{digest}/verify`
 - Dispute evidence envelope: `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={generic|internet-court|kleros|uma}`
 - Ledger signer: `GET https://tersign.ai/v1/ledger`
@@ -30,8 +36,8 @@ the EIP-712 signature locally and checks the counter-signed hash chain against t
 Command: `npx tersign` (stdio). Env: `TERSIGN_SELLER_KEY` (required, 0x hex private key),
 `TERSIGN_LEDGER_URL`, `TERSIGN_LEDGER_API_KEY`, `TERSIGN_LEDGER_SELLER_ID`,
 `TERSIGN_ISSUER_NAME`, `TERSIGN_ISSUER_JURISDICTION`.
-Tools: issue_receipt, verify_receipt, verify_compliance_record, record_refund, open_dispute,
-submit_dispute_evidence, adjudicate_dispute, get_dispute.
+Tools: issue_receipt, verify_receipt, verify_compliance_record, record_disclosure, record_refund,
+open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
 ## Docs
 
