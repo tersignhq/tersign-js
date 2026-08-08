@@ -79,6 +79,27 @@ npm i tersign
 | Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
 | Evidence packs | `format=art50` · `format=safr` (beta) |
 | Idempotency | In-memory + Cloudflare D1 stores |
+| `tersign intercept` | Audit capture at the MCP boundary — a signed, digest-only action record per tool call (experimental) |
+
+## Capture at the MCP Boundary — `tersign intercept`
+
+An agent's tool calls are usually recorded, if at all, by the party running the agent. Put a
+recording clamp on the wire instead:
+
+```sh
+npx tersign intercept -- npx your-mcp-server
+```
+
+The proxy is a **pure observer**: bytes reach the server and the client exactly as sent, in
+order, unmodified. Every `tools/call` it sees becomes an `ActionRecordV1` signed by *your* key
+and counter-signed into a hash chain — **digests only**, so the record proves what happened
+without carrying arguments or results anywhere. Records go to a configured ledger, and fall
+back to a local `~/.tersign/intercepts-<date>.jsonl` so evidence is never silently dropped.
+
+Experimental, and deliberately unopinionated about where the protocol lands: it implements the
+observation semantics of the audit-mode validator described in MCP **SEP-2624** (Draft) as a
+transport-level proxy today, and is structured to move onto the interceptor primitive if and
+when that stabilizes. It makes no conformance claim to that draft.
 
 ## For Agents — the MCP Server
 

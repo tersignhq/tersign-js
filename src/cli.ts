@@ -34,6 +34,9 @@ if (sub === undefined || sub === 'mcp') {
 } else if (sub === 'disclose') {
   process.argv.splice(2, 1);
   await import('./disclose-bin.js');
+} else if (sub === 'intercept') {
+  process.argv.splice(2, 1);
+  await import('./intercept-bin.js');
 } else if (sub === 'help' || sub === '--help' || sub === '-h') {
   console.log(
     'tersign — evidence layer for the agent economy\n\n' +
@@ -43,7 +46,14 @@ if (sub === undefined || sub === 'mcp') {
       '                          verify a receipt: local signature recovery + public chain check\n' +
       '  tersign disclose "<text>" [--medium chat] [--agent-id id] [--url resourceUrl]\n' +
       '                          counter-signed disclosure evidence — text digested locally,\n' +
-      '                          only the digest travels; key created on first use\n',
+      '                          only the digest travels; key created on first use\n' +
+      '  tersign intercept [--events m1,m2] [--agent-id id] [--ledger url] -- <server cmd…>\n' +
+      '                          byte-faithful MCP stdio proxy — signed, digest-only\n' +
+      '                          tool-call evidence for the wrapped server (experimental).\n' +
+      '                          Hosted ledger mode requires the signer key registered for\n' +
+      '                          the sellerId (TERSIGN_SELLER_KEY); rejected records fall\n' +
+      "                          back to ~/.tersign. Exits with the child's code; 1 if\n" +
+      '                          evidence was lost while the child exited 0\n',
   );
 } else {
   console.error(`unknown subcommand '${sub}' — did you mean: tersign verify ${sub}\nrun 'tersign help' for usage`);

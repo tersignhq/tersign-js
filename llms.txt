@@ -39,6 +39,16 @@ Command: `npx tersign` (stdio). Env: `TERSIGN_SELLER_KEY` (required, 0x hex priv
 Tools: issue_receipt, verify_receipt, verify_compliance_record, record_disclosure, record_refund,
 open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
+## MCP audit-capture proxy (experimental)
+
+`npx tersign intercept [--events m1,m2] [--agent-id id] [--ledger url] -- <mcp server command>`
+wraps a stdio MCP server as a byte-faithful audit-capture proxy and emits one signed,
+digest-only ActionRecordV1 per captured tool call — digests of arguments and results, never
+content. Prototype aligned to the audit-mode concepts of MCP SEP-2624 (draft); no conformance
+claim. Records go to the hosted ledger when TERSIGN_LEDGER_API_KEY + TERSIGN_LEDGER_SELLER_ID
+are set and TERSIGN_SELLER_KEY is the signer key registered for that sellerId; otherwise (or on
+rejection/timeout) to `~/.tersign/intercepts-YYYY-MM-DD.jsonl`.
+
 ## Docs
 
 - [Why independence — a log about yourself isn't evidence](https://tersign.ai/independence)
