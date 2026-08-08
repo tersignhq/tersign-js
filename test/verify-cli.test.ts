@@ -3,10 +3,10 @@
  * a bare digest resolves to the default ledger, and a receipt FILE still verifies with no
  * network unless a ledger is explicitly named. */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeAll } from 'vitest';
 
 // NOT imported from ../src/verify-bin.js: that module is a script — it calls process.exit(2)
 // on import when argv carries no target, which kills the whole run. The contract is pinned
@@ -16,6 +16,21 @@ const DEFAULT_LEDGER = 'https://tersign.ai';
 const GENESIS = '0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4';
 
 describe('verify CLI ledger resolution', () => {
+  // CI runs `npm test` BEFORE `npm run build`, so dist/ does not exist there. Build it once
+  // rather than skipping when it is missing — a test that quietly disappears in CI is worse
+  // than no test, and this one first passed locally only because a stale dist/ happened to be
+  // sitting there from an earlier manual build.
+  beforeAll(() => {
+    if (!existsSync(cli())) {
+      execFileSync('npx', ['tsc', '-p', 'tsconfig.build.json'], {
+        cwd: join(import.meta.dirname, '..'),
+        stdio: 'inherit',
+        timeout: 180_000,
+      });
+    }
+    if (!existsSync(cli())) throw new Error(`build did not produce ${cli()}`);
+  }, 200_000);
+
   it('usage names the default ledger — third parties script against this', () => {
     let stderr = '';
     try {
