@@ -20,14 +20,14 @@
 No account. No API key. This is the genesis receipt, `seq 1` on the production chain:
 
 ```sh
-npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai
+npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4
 ```
 
 ```text
 ledger: counter-signed OK (seller tersign-first, seq 1 …) VALID
 ```
 
-`npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**, then checks the entry against the public chain — yours or anyone's. Prefer raw HTTP? The same proof, no CLI:
+`npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**. A bare digest is then checked against the Tersign ledger unless `--ledger` names another; a receipt file verifies offline and touches no chain at all. The ledger consulted is always printed. Prefer raw HTTP? The same proof, no CLI:
 
 ```sh
 curl https://tersign.ai/v1/receipts/0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4/verify
@@ -155,7 +155,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
 | Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
 | Sample compliance record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
-| Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai` |
+| Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4` |
 
 ---
 

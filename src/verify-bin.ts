@@ -4,7 +4,14 @@
  * the counter-signed hash-chain holds.
  *
  *   tersign-verify <receipt.json> [--signer 0xseller] [--ledger https://…]
- *   tersign-verify <0xdigest> --ledger https://…
+ *   tersign-verify <0xdigest> [--ledger https://…]
+ *
+ * A bare digest needs a ledger to check against, and with none named it uses the public
+ * Tersign ledger — the one the published digests live on — rather than refusing. The
+ * ledger actually used is always printed, so a reader can see which chain answered and
+ * that the choice was theirs to change. `--ledger` still wins whenever it is given; a
+ * receipt FILE with no `--ledger` verifies its signature locally and checks no chain,
+ * which is unchanged.
  */
 import { readFileSync } from 'node:fs';
 import { digestOf } from './canonical.js';
@@ -22,17 +29,21 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
+/** Where a bare digest is checked when the caller names no ledger. */
+export const DEFAULT_LEDGER = 'https://tersign.ai';
+
 const target = process.argv[2];
 if (!target || target.startsWith('--')) {
   console.error('usage: tersign-verify <receipt.json | 0xdigest> [--signer 0xaddr] [--ledger url]');
+  console.error(`       a bare digest checks against ${DEFAULT_LEDGER} unless --ledger names another`);
   process.exit(2);
 }
+
 const ledger = arg('--ledger');
 const expectedSigner = arg('--signer');
 
-async function checkLedger(digest: string): Promise<void> {
-  if (!ledger) return;
-  const res = await fetch(`${ledger.replace(/\/$/, '')}/v1/receipts/${digest}/verify`);
+async function checkLedger(digest: string, url: string): Promise<void> {
+  const res = await fetch(`${url.replace(/\/$/, '')}/v1/receipts/${digest}/verify`);
   const body = (await res.json()) as {
     found?: boolean;
     chainOk?: boolean;
@@ -40,14 +51,14 @@ async function checkLedger(digest: string): Promise<void> {
     sellerId?: string;
     ledgerSigner?: string;
   };
-  if (!body.found) fail(`ledger has no record of ${digest}`);
+  if (!body.found) fail(`${url} has no record of ${digest}${ledger ? '' : ' — if it lives on another ledger, pass --ledger <url>'}`);
   if (!body.chainOk) fail('ledger record found but the counter-signed hash-chain does NOT verify');
-  console.log(`ledger:    counter-signed OK (seller ${body.sellerId}, seq ${body.seq}, ledger key ${body.ledgerSigner})`);
+  console.log(`ledger:    ${url}${ledger ? '' : '  (default; override with --ledger)'}`);
+  console.log(`           counter-signed OK (seller ${body.sellerId}, seq ${body.seq}, ledger key ${body.ledgerSigner})`);
 }
 
 if (/^0x[0-9a-f]{64}$/i.test(target)) {
-  if (!ledger) fail('a bare digest can only be checked against a ledger — pass --ledger');
-  await checkLedger(target);
+  await checkLedger(target, ledger ?? DEFAULT_LEDGER);
   console.log('VALID');
   process.exit(0);
 }
@@ -81,5 +92,8 @@ if (record) {
   console.log(`record:    OK (bound to receipt, signer ${rec.signer})`);
 }
 
-await checkLedger(digest);
+// A receipt FILE carries its own signature, so it verifies with no network at all. Only
+// check a chain when the caller asked for one — defaulting here would turn an offline
+// verification into a silent network call, which is the opposite of the point.
+if (ledger) await checkLedger(digest, ledger);
 console.log('VALID');

@@ -11,7 +11,7 @@ ARD catalog: https://tersign.ai/.well-known/ai-catalog.json
 ## Verify something real right now
 
 ```
-npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai
+npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4
 ```
 
 That digest is a live counter-signed record (seller `tersign-first`, seq 1). The command recovers
