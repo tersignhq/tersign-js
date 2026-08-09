@@ -47,7 +47,7 @@ describe('verify CLI ledger resolution', () => {
   it('a bare digest with no --ledger consults the default and says so', () => {
     const out = execFileSync(process.execPath, [cli(), GENESIS], { encoding: 'utf8', timeout: 30_000 });
     expect(out).toContain(DEFAULT_LEDGER);
-    expect(out).toContain('(default; override with --ledger)');
+    expect(out).toMatch(/^ledger:\s+https:\/\/tersign\.ai$/m);
     expect(out).toMatch(/counter-signed OK/);
     expect(out.trimEnd().endsWith('VALID')).toBe(true);
   });
@@ -58,7 +58,6 @@ describe('verify CLI ledger resolution', () => {
       timeout: 30_000,
     });
     expect(out).toContain(DEFAULT_LEDGER);
-    expect(out).not.toContain('default; override');
   });
 
   it('a receipt file without --ledger stays offline — no chain call', () => {

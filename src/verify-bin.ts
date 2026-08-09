@@ -51,9 +51,13 @@ async function checkLedger(digest: string, url: string): Promise<void> {
     sellerId?: string;
     ledgerSigner?: string;
   };
-  if (!body.found) fail(`${url} has no record of ${digest}${ledger ? '' : ' — if it lives on another ledger, pass --ledger <url>'}`);
+  // Name the ledger that answered, always — a verifier that hides which chain it consulted is
+  // making the reader take its word for the one fact the check exists to establish. Nothing
+  // beyond that: `--ledger` is documented in usage and the README, and the failure path is not
+  // the place to advertise the alternative to the thing that just failed.
+  if (!body.found) fail(`no record of ${digest} on the Tersign ledger (${url})`);
   if (!body.chainOk) fail('ledger record found but the counter-signed hash-chain does NOT verify');
-  console.log(`ledger:    ${url}${ledger ? '' : '  (default; override with --ledger)'}`);
+  console.log(`ledger:    ${url}`);
   console.log(`           counter-signed OK (seller ${body.sellerId}, seq ${body.seq}, ledger key ${body.ledgerSigner})`);
 }
 
