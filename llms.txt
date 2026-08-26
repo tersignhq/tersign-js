@@ -20,10 +20,10 @@ the EIP-712 signature locally and checks the counter-signed hash chain against t
 ## Public APIs (no auth)
 
 - One-call disclosure evidence: `POST https://tersign.ai/v1/disclose` body `{"artifact": <SignedActionRecord>}`
-  (action.kind 'disclosure'; signer-keyed — first call self-provisions a free wedge account;
+  (action.kind 'disclosure'; signer-keyed — first call self-provisions a free signer-keyed account;
   rate limits at https://tersign.ai/pricing). CLI: `npx tersign disclose "<text>" --agent-id my-agent`
   — text digested locally, only the digest travels.
-- Wedge data rights: `POST /v1/wedge/export` and `POST /v1/wedge/erase`, authenticated by a
+- Data rights for self-provisioned signer-keyed accounts: `POST /v1/wedge/export` and `POST /v1/wedge/erase`, authenticated by a
   personal_sign over `tersign-data-rights-v1:<action>[:digest]:<unixNow>` from the chain's key.
 - Verify: `GET https://tersign.ai/v1/receipts/{digest}/verify`
 - Dispute evidence envelope: `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={generic|internet-court|kleros|uma}`
