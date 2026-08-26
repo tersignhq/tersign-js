@@ -24,7 +24,8 @@ export interface EvidenceEnvelopeV1 {
   };
   chain: {
     prevDigest: `0x${string}` | null;
-    /** digestOf({artifactDigest, prevDigest, seq}) — what the ledger counter-signs */
+    /** keccak256(artifactDigest ‖ prevDigest ‖ uint64be(seq)) — byte concat, NOT canonical-JSON
+     * (fixed 2026-08-27: the old comment described a different, wrong recipe) — what the ledger counter-signs */
     linkDigest: `0x${string}`;
     countersignature: `0x${string}`;
     ledgerSigner: `0x${string}`;

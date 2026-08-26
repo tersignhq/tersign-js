@@ -41,7 +41,7 @@ export function toInternetCourtSubmission(env: EvidenceEnvelopeV1): string {
     envelope: env,
     howToVerify:
       `GET ${env.verifyUrl} (no account) recomputes the hash-chain link and returns chainOk; ` +
-      `or recompute locally: linkDigest = keccak256(canonical({artifactDigest, prevDigest, seq})) ` +
+      `or recompute locally: linkDigest = keccak256(artifactDigestBytes || prevDigestBytes || uint64be(seq)) ` +
       `and recover the counter-signature to ${env.chain.ledgerSigner}.`,
   });
   if (out.length > VENUE_SUBMISSION_MAX_CHARS) {

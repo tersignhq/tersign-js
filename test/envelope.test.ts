@@ -28,7 +28,7 @@ const FIXTURE: EvidenceEnvelopeV1 = {
 
 /** Cross-impl drift tripwire: digest of the exact internet-court submission string for the
  * fixture above. MUST equal the vector pinned in the ledger's suite — edit both or neither. */
-const IC_SUBMISSION_VECTOR = '0x8fd9f114797f0b9c6c28de32cdadad2d5c7745f9140c8264c2ea6e5ed1d0ced4';
+const IC_SUBMISSION_VECTOR = '0xc4533802ea82a18d3ee66e86b9f694aeddeb61b209ca33cfeb3ccdb00532ccd0'; // re-pinned 2026-08-27: howToVerify prose fix (wrong linkDigest recipe → byte-concat)
 
 describe('evidence envelope serializers', () => {
   it('internet-court submission fits the slot, round-trips, and pins the cross-impl vector', () => {

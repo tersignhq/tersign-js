@@ -24,9 +24,7 @@ npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213d
 ```
 
 ```text
-ledger:    https://tersign.ai
-           counter-signed OK (seller tersign-first, seq 1, ledger key 0x9d38BA84730271eb27Ac9bD4Bd2620c08dB4FDa6)
-VALID
+ledger: counter-signed OK (seller tersign-first, seq 1 …) VALID
 ```
 
 `npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**. A bare digest is then checked against the Tersign ledger unless `--ledger` names another; a receipt file verifies offline and touches no chain at all. The ledger consulted is always printed. Prefer raw HTTP? The same proof, no CLI:
@@ -138,8 +136,8 @@ The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.co
 
 - **Ledger + dashboard** — public verify page: https://tersign.ai/verify
 - **Census** — hash-chained observations across the live x402 seller catalog, probed autonomously; the numbers are served live, never quoted stale: https://prober.tersign.ai/v1/prober/stats
-- **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, and the public two-sided vector suite (canonical bytes, number domain, content address, chain continuity, completeness, anchored existence, phase separation, offer binding, decision-evidence binding, boundary binding, independence — every criterion carrying both an accepting and an adversarial vector): [tersignhq/evidence-record-conformance](https://github.com/tersignhq/evidence-record-conformance). Reproduce the bytes and your implementation is conformant — in any language.
-- **Standards** — the `compliance-fields` extension — a typed compliance-record schema plus four evaluator-side disqualifications (independence, completeness/existence, economic-phase separation, and commitment scope — an independence claim reaches exactly as far as the record's own commitments), each executable as a two-sided conformance vector — is under review upstream ([x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)) and referenced in the x402 TSC's evidence-record charter agenda ([tsc#4](https://github.com/x402-foundation/tsc/issues/4)). The merged offer-receipt spec already carries post-session verification guidance — signer authorization evaluated as of `issuedAt`, with mutable-source rotation handled explicitly ([#2811](https://github.com/x402-foundation/x402/pull/2811), merged); the completeness, independence, existence and phase disqualifications are the open extension's normative core.
+- **Conformance** — RFC 8785 (JCS) canonical serialization, keccak256 digests, and the public two-sided vector suite (canonical bytes, number domain, content address, chain continuity, completeness, anchored existence, phase separation, offer binding, independence — every criterion carrying both an accepting and an adversarial vector): [tersignhq/evidence-record-conformance](https://github.com/tersignhq/evidence-record-conformance). Reproduce the bytes and your implementation is conformant — in any language.
+- **Standards** — the `compliance-fields` extension — a typed compliance-record schema plus four evaluator-side disqualifications (independence, completeness/existence, economic-phase separation, and commitment scope — an independence claim reaches exactly as far as the record's own commitments), each executable as a two-sided conformance vector — is under review upstream ([x402-foundation/x402#2853](https://github.com/x402-foundation/x402/pull/2853)) and referenced in the x402 TSC's evidence-record charter agenda ([tsc#4](https://github.com/x402-foundation/tsc/issues/4)). The merged offer-receipt spec already carries the completeness criterion at SHOULD strength (§4.5.1, [#2811](https://github.com/x402-foundation/x402/pull/2811)).
 
 ## Machine Surfaces
 
@@ -158,6 +156,29 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
 | Sample compliance record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
 | Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4` |
+
+---
+
+## Contributing — read this before opening a pull request
+
+**`tersignhq/tersign-js` is a publish snapshot, not the development repository.** Each release
+overwrites `src/`, `test/` and the packaged manifests wholesale from an upstream working tree, so
+a pull request opened here cannot be merged in any durable way — the next release would silently
+erase it. That is a property of the pipeline, not a judgement on the change.
+
+Contributions are wanted; the mechanics just have to route around that:
+
+- **Bugs, questions, spec disagreements** — open an issue here. Issues are read, and they are the
+  right surface for anything that does not need to touch this tree.
+- **Code changes** — open the issue first with the diff or a description. The change is applied
+  upstream **preserving your authorship**, released, and the issue closed with a link to the
+  version that carries your work. Credit follows commit authorship, not a merge badge.
+- **Conformance disagreements** — the two-sided vector suite at
+  [tersignhq/evidence-record-conformance](https://github.com/tersignhq/evidence-record-conformance)
+  takes pull requests normally, and is the better venue for "this criterion is wrong" or "here is
+  the case it misses." External vectors have been merged there.
+
+If a maintainer ever asks you to reopen work elsewhere because of this, that is why.
 
 ---
 
