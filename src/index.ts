@@ -1,5 +1,21 @@
 export * from './types.js';
-export { canonicalStringify, digestOf } from './canonical.js';
+export {
+  canonicalStringify,
+  digestOf,
+  GENESIS_DIGEST,
+  chainLinkDigest,
+  CHAIN_COMMITMENT_SCHEMA,
+  ACC_GENESIS,
+  chainAccumulatorStep,
+  chainCommitment,
+  commitmentDigest,
+  foldAccumulator,
+  verifyCommitment,
+  ChainIntegrityError,
+  type ChainCommitment,
+  type ChainRecordLike,
+  type CommitmentVerifyResult,
+} from './canonical.js';
 export {
   RECEIPT_DOMAIN,
   RECEIPT_TYPES,

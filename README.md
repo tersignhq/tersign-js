@@ -47,6 +47,8 @@ The text is digested **locally** (only the digest travels — data-minimization 
 
 Every entry takes the same path: the seller **signs** the receipt (EIP-712, x402 offer-receipt extension) → Tersign computes the **keccak256 canonical digest** → the digest joins that **seller's hash chain**, each `seq n` bound to `seq n−1` → the neutral ledger **counter-signs** (secp256k1) → **anyone verifies**, and any venue gets a serialized envelope.
 
+Since 2026-08-28 each anchor stamps a chain commitment — an accumulator over every counter-signed link — so one anchored digest covers the whole prefix; rows anchored earlier bind the head record only and say so (`subjectSchema`).
+
 ```mermaid
 graph LR
     A["agent transaction<br/>x402"] --> B["seller-signed receipt<br/>EIP-712"]

@@ -50,6 +50,7 @@ async function checkLedger(digest: string, url: string): Promise<void> {
     seq?: number;
     sellerId?: string;
     ledgerSigner?: string;
+    commitment?: { seq: number; acc: string; status: string; bitcoinBlockHeight?: number | null };
   };
   // Name the ledger that answered, always — a verifier that hides which chain it consulted is
   // making the reader take its word for the one fact the check exists to establish. Nothing
@@ -59,6 +60,13 @@ async function checkLedger(digest: string, url: string): Promise<void> {
   if (!body.chainOk) fail('ledger record found but the counter-signed hash-chain does NOT verify');
   console.log(`ledger:    ${url}`);
   console.log(`           counter-signed OK (seller ${body.sellerId}, seq ${body.seq}, ledger key ${body.ledgerSigner})`);
+  // Present once the record sits under an anchored chain commitment (anchors since 2026-08-28):
+  // the accumulator covers every seq ≤ commitment.seq, so the anchor binds this record too.
+  const c = body.commitment;
+  if (c) {
+    const block = c.bitcoinBlockHeight ? ` block ${c.bitcoinBlockHeight}` : '';
+    console.log(`           commitment: seq ≤ ${c.seq} committed (acc ${c.acc.slice(0, 10)}…) — ${c.status}${block}`);
+  }
 }
 
 if (/^0x[0-9a-f]{64}$/i.test(target)) {
