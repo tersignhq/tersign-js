@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Assure } from '../assure.js';
 import { LedgerClient } from '../ledgerClient.js';
+import { resolveSignerKey } from '../keystore.js';
 import type { SignedReceipt, SignedComplianceRecord, ComplianceRecordV1 } from '../types.js';
 import {
   adjudicateDisputeTool,
@@ -23,8 +24,12 @@ import type { EvidenceArtifactRef } from '../dispute/types.js';
  * Config via env — see envDeps(). */
 
 export function envDeps(env: Record<string, string | undefined> = process.env): McpDeps {
-  const key = env.TERSIGN_SELLER_KEY;
-  if (!key) throw new Error('TERSIGN_SELLER_KEY (0x-prefixed private key) is required');
+  // Same key resolution as the CLI surfaces: TERSIGN_SELLER_KEY, else the OS keychain, else a
+  // 0600 keyfile, else generate one and persist it. record_disclosure's own description promises
+  // that first call self-provisions a signer-keyed account; before this the MCP entry point threw
+  // instead, so `npx tersign` died on first run for anyone who had not already exported a key —
+  // and no directory or sandbox could introspect the server at all.
+  const key = env.TERSIGN_SELLER_KEY ?? resolveSignerKey({ create: true }).key;
   const account = privateKeyToAccount(key as `0x${string}`);
   const assure = new Assure({
     signer: account,
@@ -62,7 +67,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.4.5' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.4.6' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);

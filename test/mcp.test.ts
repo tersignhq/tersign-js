@@ -4,7 +4,7 @@ import { Assure } from '../src/assure.js';
 import { verifyDispute } from '../src/dispute/sign.js';
 import type { SignedDispute } from '../src/dispute/types.js';
 import { issueReceiptTool, openDisputeTool, verifyReceiptTool, verifyRecordTool } from '../src/mcp/tools.js';
-import { buildServer, MCP_SERVER_IDENTITY } from '../src/mcp/server.js';
+import { buildServer, envDeps, MCP_SERVER_IDENTITY } from '../src/mcp/server.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -74,5 +74,25 @@ describe('MCP dispute tools', () => {
     // npx resolves the package-name-matching bin — the registry listing depends on it existing;
     // the dispatcher defaults to the MCP server so bare `npx tersign` keeps the registry contract
     expect(pkg.bin[pkg.name]).toBe('dist/cli.js');
+  });
+});
+
+describe('envDeps key resolution', () => {
+  const src = readFileSync(fileURLToPath(new URL('../src/mcp/server.ts', import.meta.url)), 'utf8');
+
+  it('an explicit TERSIGN_SELLER_KEY still wins', () => {
+    const key = generatePrivateKey();
+    const deps = envDeps({ TERSIGN_SELLER_KEY: key });
+    expect(deps.signer.address).toBe(privateKeyToAccount(key).address);
+  });
+
+  // Tripwire, not behavioural: exercising the fallback would create a real key in the OS
+  // keychain or ~/.tersign on whoever runs the suite. What must never come back is the hard
+  // throw — it made `npx tersign` die on first run for anyone without the env var exported,
+  // left every directory and sandbox unable to introspect the server, and contradicted
+  // record_disclosure's own published promise that the first call self-provisions.
+  it('falls back to the shared keystore instead of throwing when the env var is absent', () => {
+    expect(src).toContain("resolveSignerKey({ create: true })");
+    expect(src).not.toContain("throw new Error('TERSIGN_SELLER_KEY");
   });
 });
