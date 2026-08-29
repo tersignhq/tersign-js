@@ -50,6 +50,7 @@ jobs:
 
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm run typecheck   # build/ excludes test/; this covers both
       - run: npm run build
 
       - name: Publish to npm (trusted publishing, provenance; idempotent for re-runs)
