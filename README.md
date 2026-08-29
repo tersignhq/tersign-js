@@ -157,7 +157,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Bundle verifier, out-of-band | https://tersign.ai/verify/v1/ — `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`. A bundle ships its own checker; for evidence from an interested party fetch this copy and diff the two. |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
 | Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
-| Sample compliance record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
+| Sample action record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
 | Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4` |
 
 ---
