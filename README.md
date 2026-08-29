@@ -127,8 +127,8 @@ when that stabilizes. It makes no conformance claim to that draft.
 | `TERSIGN_LEDGER_URL` | no | hosted ledger for counter-signing + chain checks |
 | `TERSIGN_LEDGER_API_KEY` | no | your seller API key on that ledger |
 | `TERSIGN_LEDGER_SELLER_ID` | no | your seller id on that ledger |
-| `TERSIGN_ISSUER_NAME` | no | issuer name stamped on compliance records |
-| `TERSIGN_ISSUER_JURISDICTION` | no | issuer jurisdiction stamped on compliance records |
+| `TERSIGN_ISSUER_NAME` | no | issuer name stamped on action records |
+| `TERSIGN_ISSUER_JURISDICTION` | no | issuer jurisdiction stamped on action records |
 
 Cold to counter-signed in one session: call `issue_receipt`, then check the issued receipt's digest with `npx tersign verify <digest> --ledger <url>`.
 
@@ -148,12 +148,13 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Surface | Address |
 |---|---|
 | npm package | `tersign` — https://www.npmjs.com/package/tersign |
-| MCP registry | `io.github.tersignhq/evidence` |
+| MCP registry | `io.github.tersignhq/evidence` — `npx tersign` needs no configuration; the first call self-provisions a signer-keyed account |
 | ARD catalog (Agentic Resource Discovery) | https://tersign.ai/.well-known/ai-catalog.json |
 | Verify API | `GET https://tersign.ai/v1/receipts/{digest}/verify` |
 | Envelope API | `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
 | Ledger stats | `GET https://tersign.ai/v1/stats` |
 | Ledger signer | `GET https://tersign.ai/v1/ledger` |
+| Bundle verifier, out-of-band | https://tersign.ai/verify/v1/ — `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`. A bundle ships its own checker; for evidence from an interested party fetch this copy and diff the two. |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
 | Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
 | Sample compliance record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
