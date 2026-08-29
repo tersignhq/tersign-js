@@ -15,14 +15,22 @@ const sub = process.argv[2];
 
 if (sub === undefined || sub === 'mcp') {
   if (sub === 'mcp') process.argv.splice(2, 1);
-  // Bare `npx tersign` with no config is almost always a curious human, not an MCP client —
-  // greet them with the wiring instructions instead of a stack trace.
-  if (!process.env.TERSIGN_SELLER_KEY) {
+  // Bare `npx tersign` at a prompt is almost always a curious human, not an MCP client — greet
+  // them rather than sitting mute on a stdio transport they are not speaking. The discriminator
+  // is the TTY, NOT the presence of a key: an MCP client, a directory's sandbox and a CI probe
+  // all arrive with stdin piped, and until 2026-08-29 every one of them hit a hard exit here.
+  // That made `npx tersign` fail on first run for anyone who had not already exported a key,
+  // left the server impossible to introspect or demonstrate anywhere, and contradicted
+  // record_disclosure's own published promise that the first call self-provisions. The key is
+  // no longer required — envDeps resolves through the shared keystore — so the greeting is now
+  // a courtesy for humans instead of a gate on everyone.
+  if (process.stdin.isTTY && !process.env.TERSIGN_SELLER_KEY) {
     console.error(
-      'tersign: this command starts the MCP server, which needs TERSIGN_SELLER_KEY set.\n\n' +
-        'Wire it into your MCP client config:\n' +
-        '  { "mcpServers": { "tersign": { "command": "npx", "args": ["tersign"],\n' +
-        '      "env": { "TERSIGN_SELLER_KEY": "0x<your-seller-key>" } } } }\n\n' +
+      'tersign: this starts the MCP server, which speaks JSON-RPC over stdin — nothing to see\n' +
+        'at a prompt. Wire it into your MCP client config:\n\n' +
+        '  { "mcpServers": { "tersign": { "command": "npx", "args": ["tersign"] } } }\n\n' +
+        'No key needed: the first call self-provisions a signer-keyed account (OS keychain,\n' +
+        'else ~/.tersign/signer.key). Set TERSIGN_SELLER_KEY to use your own.\n\n' +
         "Just exploring? Try:  tersign help   ·   tersign verify <receipt.json | 0xdigest> [--ledger url]",
     );
     process.exit(1);
