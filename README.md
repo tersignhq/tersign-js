@@ -74,7 +74,7 @@ npm i tersign
 |---|---|
 | Receipts | Seller-signed EIP-712 (x402 offer-receipt extension), keccak256 canonical digests |
 | `withAssure()` | x402 fetch-handler adapter — a receipt per paid call |
-| Compliance records | EU Art-226b minimal tier · EN 16931 full tier · HK IRO s.51C retention |
+| Compliance exports | EU Art-226b minimal tier · EN 16931 full tier · HK IRO s.51C retention |
 | Action records | `ActionRecordV1` — GDPR-minimized; captures the content of an Art-50 disclosure so the disclosure itself is independently attested, not self-reported |
 | Refunds | Chained to the original receipt via `refundOf` |
 | Disputes v0 | Objective reason codes, evidence submission, adjudication |
