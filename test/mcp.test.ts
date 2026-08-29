@@ -83,7 +83,7 @@ describe('envDeps key resolution', () => {
   it('an explicit TERSIGN_SELLER_KEY still wins', () => {
     const key = generatePrivateKey();
     const deps = envDeps({ TERSIGN_SELLER_KEY: key });
-    expect(deps.signer.address).toBe(privateKeyToAccount(key).address);
+    expect(deps.signer?.address).toBe(privateKeyToAccount(key).address);
   });
 
   // Tripwire, not behavioural: exercising the fallback would create a real key in the OS
