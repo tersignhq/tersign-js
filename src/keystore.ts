@@ -41,6 +41,18 @@ function readKeychain(): string | null {
 
 function writeKeychain(key: string): boolean {
   if (process.platform !== 'darwin') return false;
+  // Preflight, added 2026-08-30. `security add-generic-password` does not merely FAIL when no
+  // login keychain is reachable — it raises a MODAL macOS dialog ("A keychain cannot be found
+  // to store …"), which blocks a headless run and ambushes anyone whose first command is
+  // `npx tersign`. Seen for real while probing first-run behaviour with a sandboxed HOME; the
+  // same shape hits a Mac CI runner, an ssh session with a locked keychain, and any sandbox.
+  // `security default-keychain` answers the question silently, so ask it before writing and
+  // fall through to the 0600 keyfile when the answer is no.
+  try {
+    execFileSync('security', ['default-keychain'], { stdio: ['ignore', 'ignore', 'ignore'] });
+  } catch {
+    return false;
+  }
   try {
     execFileSync(
       'security',
