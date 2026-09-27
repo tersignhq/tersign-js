@@ -24,8 +24,11 @@ export {
   signReceipt,
   signOffer,
   verifyReceipt,
+  SIGNED_RECEIPT_FIELDS,
   type VerifyResult,
 } from './receipt/eip712.js';
+export { PUBLISHED_TEST_KEYS, publishedKeyLabel } from './receipt/known-keys.js';
+export { signerStatus, type SignerBinding, type SignerStatus } from './receipt/binding.js';
 export {
   COMPLIANCE_DOMAIN,
   COMPLIANCE_TYPES,
@@ -34,6 +37,7 @@ export {
   recordDigest,
   signComplianceRecord,
   verifyComplianceRecord,
+  type RecordVerifyResult,
   type IssuerConfig,
   type MinimalRecordInput,
 } from './compliance/record.js';

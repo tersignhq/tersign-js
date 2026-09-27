@@ -179,3 +179,34 @@ describe('chain commitment accumulator — pins (cross-impl contract with @tersi
     expect(wrongHead.reason).toMatch(/head mismatch/);
   });
 });
+
+/** Injectivity — the invariant the whole product rests on, asserted directly.
+ *
+ * The public corpus cannot carry this one. Its n11 vector (2^53) pins an expected_digest that
+ * a naive implementation does not reproduce either, so n11 rejects whether or not the engine
+ * enforces the bound — it does not discriminate, which I verified by mutation. n10 and n35 do.
+ * These cases close what the corpus structurally cannot: two DISTINCT records must never share
+ * a canonical form. Both pairs below did, in shipped code. */
+describe('canonical form is injective', () => {
+  const collisions: Array<[string, unknown, unknown]> = [
+    ['2^53+1 rounds onto 2^53', { amount: 9007199254740993 }, { amount: 9007199254740992 }],
+    ['Infinity folds onto null', { n: 1e400 }, { n: null }],
+    ['-Infinity folds onto null', { n: -1e400 }, { n: null }],
+    ['NaN folds onto null', { n: NaN }, { n: null }],
+  ];
+  for (const [name, a, b] of collisions) {
+    it(`refuses the pair that would collide: ${name}`, () => {
+      // At least one side must be refused outright; if both serialize they must differ.
+      let sa: string | null = null;
+      let sb: string | null = null;
+      try { sa = canonicalStringify(a); } catch { /* refused, which is the fix */ }
+      try { sb = canonicalStringify(b); } catch { /* refused */ }
+      if (sa !== null && sb !== null) expect(sa).not.toBe(sb);
+      else expect(sa === null || sb === null).toBe(true);
+    });
+  }
+
+  it('keeps the largest safe integer, which is the boundary the corpus pins as valid', () => {
+    expect(canonicalStringify({ n: 9007199254740991 })).toBe('{"n":9007199254740991}');
+  });
+});

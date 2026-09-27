@@ -29,7 +29,11 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
   // that first call self-provisions a signer-keyed account; before this the MCP entry point threw
   // instead, so `npx tersign` died on first run for anyone who had not already exported a key —
   // and no directory or sandbox could introspect the server at all.
-  const key = env.TERSIGN_SELLER_KEY ?? resolveSignerKey({ create: true }).key;
+  // `||`, not `??`: an EMPTY TERSIGN_SELLER_KEY means unset, exactly as the keystore reads it.
+  // The listing marks the key optional, and a client that fills a blank optional secret with ""
+  // (which clients do is unmeasured) got a crash: `??` handed "" to privateKeyToAccount
+  // (fixed 2026-09-27). test/listing.test.ts starts the registry command with the key set to "".
+  const key = env.TERSIGN_SELLER_KEY || resolveSignerKey({ create: true }).key;
   const account = privateKeyToAccount(key as `0x${string}`);
   const assure = new Assure({
     signer: account,
@@ -67,7 +71,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.4.11' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.5.0' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);
@@ -77,9 +81,9 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Issue signed receipt',
       description:
-        'Issue an x402 offer-receipt (EIP-712) plus a Tersign action record for a payment that has ALREADY settled, and counter-sign both into your hash chain when a ledger is configured. ' +
+        'Issue an x402 offer-receipt (EIP-712) plus a Tersign compliance record (returned as `compliance`; verify_compliance_record checks it) for a payment that has ALREADY settled, and counter-sign both into your hash chain when a ledger is configured. ' +
         'Use this for money that moved; use record_disclosure for a non-payment agent action. ' +
-        'Side effects: signs with TERSIGN_SELLER_KEY, and performs ONE network write to the ledger when TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID are set (without them it signs locally and returns an unchained artifact). ' +
+        'Side effects: signs with your signing key (TERSIGN_SELLER_KEY when set, else the one generated and kept locally on first run), and performs ONE network write to the ledger when TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID are set (without them it signs locally and returns an unchained artifact). ' +
         'Returns the signed receipt artifact, its keccak256 canonical digest, and — when chained — the ledger counter-signature and sequence number.',
       inputSchema: {
         network: z.string().describe('settlement network as CAIP-2, e.g. "eip155:8453" for Base mainnet'),
@@ -107,10 +111,11 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Verify signed receipt',
       description:
-        'Verify an offer-receipt artifact: recover the EIP-712 signature and confirm the payload digest binds to it. ' +
-        'Fully OFFLINE — no network, no API key, no account; verifying someone else\'s receipt is the intended use. ' +
-        'Use this for a receipt (money); use verify_compliance_record for an action record (a non-payment action). ' +
-        'Returns { valid, signer, digest } and, when expectedSigner is supplied and does not match, valid:false with the recovered signer so you can see who actually signed.',
+        'Verify an x402 offer-receipt artifact, fully OFFLINE (no network, no API key, no account; checks no ledger or chain): recover the address whose key produced its EIP-712 signature over the six signed payload fields (version, network, resourceUrl, payer, issuedAt, transaction), and compute its canonical digest (the content address a ledger records it under). ' +
+        'Recovery yields SOME address for any payload, so without expectedSigner the signer is UNAUTHENTICATED: valid:true then proves neither who signed nor that the receipt is unmodified — an edited receipt recovers a different address and still returns valid:true. ' +
+        'Pass expectedSigner, the issuer\'s address obtained out-of-band, to bind it: valid:true then means the signed fields were signed by that key; a mismatch returns valid:false with the recovered signer so you can see who actually signed. ' +
+        'Use this for a receipt (money); use verify_compliance_record for the compliance record issue_receipt returns beside a receipt. ' +
+        'Returns { verdict, valid, signer, signerStatus: BOUND | UNAUTHENTICATED | MISMATCH, signerBound, testKey? (the signer is a PUBLISHED test key — anyone can sign as it), digest, unsignedFields? (present in the artifact but not covered by the signature), reason? }. Read verdict first.',
       inputSchema: {
         artifact: z
           .record(z.unknown())
@@ -118,7 +123,7 @@ export function buildServer(deps: McpDeps): McpServer {
         expectedSigner: z
           .string()
           .optional()
-          .describe('0x address the receipt MUST be signed by — obtain it out-of-band, never from the artifact. Omit to recover the signer without enforcing it'),
+          .describe('0x address the receipt MUST be signed by — obtain it out-of-band, never from the artifact. Omit to recover the signer without binding it (it is then reported UNAUTHENTICATED)'),
       },
     },
     async ({ artifact, expectedSigner }) => json(await verifyReceiptTool(artifact as unknown as SignedReceipt, expectedSigner)),
@@ -129,7 +134,7 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Record counter-signed disclosure',
       description:
-        'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. No API key needed — first call self-provisions a free signer-keyed account.',
+        'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. No API key needed — the first call self-provisions a free signer-keyed account, except when your key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing).',
       inputSchema: {
         text: z.string().optional().describe('the disclosure text as presented — digested locally, never transmitted'),
         textDigest: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional().describe('pre-computed digest (wins over text)'),
@@ -150,22 +155,21 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Verify compliance record',
       description:
-        'Verify a Tersign action record against its attestation: recompute the record\'s canonical digest, confirm the attestation commits to that exact digest, and recover the signature. ' +
-        'Fully OFFLINE — no network, no API key, no account. ' +
-        'Use this for an action record (a disclosure or other non-payment agent action); use verify_receipt for a payment receipt. ' +
-        'PASS proves integrity and internal consistency only. Authorship needs an out-of-band signer address: pass expectedSigner, or the identity is whatever the artifact claims about itself. ' +
-        'Returns { valid, signer, digest }; on mismatch, valid:false plus the recovered signer and the recomputed digest.',
+        'Verify ONE record type: the compliance record that issue_receipt returns beside a receipt (`compliance`: a ComplianceRecordV1 `record` plus its ComplianceAttestation `attestation`, EIP-712 domain "compliance-fields"), fully OFFLINE (no network, no API key, no account): recompute the record\'s canonical digest, check that the attestation\'s signed payload names that exact digest and the same receiptDigest as the record, and recover the address that signed the attestation. ' +
+        'It does NOT verify the disclosure record record_disclosure returns: that is a different record type (an action record, EIP-712 domain "tersign action-record"), and passed here it fails with a digest mismatch that says nothing about tampering. Use verify_receipt for the payment receipt itself. ' +
+        'Without expectedSigner the signer is UNAUTHENTICATED and valid:true proves internal consistency only — anyone can edit a record, recompute its digest and re-sign the attestation with their own key, and still get valid:true with a different signer. Pass expectedSigner, obtained out-of-band, to bind authorship. ' +
+        'Returns { verdict, valid, signer, signerStatus: BOUND | UNAUTHENTICATED | MISMATCH, signerBound, testKey? (a PUBLISHED test key — anyone can sign as it), digest (the recomputed record digest), reason? }. Read verdict first.',
       inputSchema: {
         record: z
           .record(z.unknown())
-          .describe('the action record object as issued (ComplianceRecordV1 shape). Pass the object, not a JSON string; any field edit changes the digest and fails verification — which is the point'),
+          .describe('the compliance record exactly as issue_receipt returned it (`compliance.record`, ComplianceRecordV1 shape). Pass the object, not a JSON string; any field edit changes the digest and fails verification — which is the point'),
         attestation: z
           .record(z.unknown())
-          .describe('the attestation that accompanies the record: the signature over the record digest, as returned alongside it at issuance'),
+          .describe('the attestation returned with it (`compliance.attestation`): the seller\'s EIP-712 signature over the record digest'),
         expectedSigner: z
           .string()
           .optional()
-          .describe('0x address the record MUST be signed by, obtained out-of-band (for the public ledger: https://tersign.ai/v1/ledger). Omit to recover the signer without enforcing it'),
+          .describe('0x address the record MUST be signed by: the SELLER\'s signing address (the key that signed the receipt and this record), obtained out-of-band — not the ledger\'s counter-signing key, which never signs compliance records. Omit to recover the signer without binding it (it is then reported UNAUTHENTICATED)'),
       },
     },
     async ({ record, attestation, expectedSigner }) =>

@@ -9,6 +9,7 @@ import type {
   SignedReceipt,
   VerifyLike,
 } from './types.js';
+import { bindSigner, isPlainObject, parseExpectedSigner, signatureError, type SignerBinding } from '../receipt/binding.js';
 
 /** Canonical domain per the compliance-fields extension spec (x402-foundation/x402#2853).
  * Migrated from the vendor domain 'tersign compliance-record' on 2026-07-14 while ZERO
@@ -103,20 +104,45 @@ export async function signComplianceRecord(
   return { record, attestation: { format: 'eip712', payload, signature } };
 }
 
+/** VerifyLike plus the signer binding: signerBound is true only when expectedSigner was supplied
+ * and matched; testKey flags a published test key. Without a bound signer a PASS proves the
+ * record and attestation are internally consistent and nothing else — anyone can edit a record,
+ * recompute its digest and re-sign the attestation with their own key. */
+export type RecordVerifyResult = VerifyLike & SignerBinding;
+
 export async function verifyComplianceRecord(
   signed: SignedComplianceRecord,
   expectedSigner?: string,
-): Promise<VerifyLike> {
+): Promise<RecordVerifyResult> {
+  const expected = parseExpectedSigner(expectedSigner);
+  if (!expected.ok) return { valid: false, signerBound: false, reason: expected.reason };
+  if (
+    !isPlainObject(signed) ||
+    !isPlainObject((signed as { record?: unknown }).record) ||
+    !isPlainObject((signed as { attestation?: unknown }).attestation) ||
+    !isPlainObject((signed as { attestation: { payload?: unknown } }).attestation.payload)
+  ) {
+    return { valid: false, signerBound: false, reason: 'not a signed action record: expected {record, attestation{format, payload, signature}}' };
+  }
   const { attestation, record } = signed;
-  if (attestation.format !== 'eip712') return { valid: false, reason: 'jws not implemented in v0' };
-  if (attestation.payload.recordDigest !== recordDigest(record)) {
-    return { valid: false, reason: 'record digest mismatch — record was altered after signing' };
+  if (attestation.format !== 'eip712') return { valid: false, signerBound: false, reason: 'jws not implemented in v0' };
+  let digest: `0x${string}`;
+  try {
+    digest = recordDigest(record);
+  } catch (e) {
+    return { valid: false, signerBound: false, reason: `cannot compute the record digest: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (attestation.payload.recordDigest !== digest) {
+    return { valid: false, signerBound: false, reason: 'record digest mismatch — record was altered after signing' };
   }
   if (attestation.payload.receiptDigest !== record.receiptDigest) {
-    return { valid: false, reason: 'attestation/receipt digest mismatch' };
+    return { valid: false, signerBound: false, reason: 'attestation/receipt digest mismatch' };
   }
+  const badSig = signatureError((attestation as { signature?: unknown }).signature);
+  if (badSig) return { valid: false, signerBound: false, reason: `attestation ${badSig}` };
+  let signer: `0x${string}`;
   try {
-    const signer = await recoverTypedDataAddress({
+    signer = await recoverTypedDataAddress({
       domain: COMPLIANCE_DOMAIN,
       types: COMPLIANCE_TYPES,
       primaryType: 'ComplianceAttestation',
@@ -128,11 +154,8 @@ export async function verifyComplianceRecord(
       },
       signature: attestation.signature,
     });
-    if (expectedSigner && signer.toLowerCase() !== expectedSigner.toLowerCase()) {
-      return { valid: false, signer, reason: 'unexpected signer' };
-    }
-    return { valid: true, signer };
   } catch (e) {
-    return { valid: false, reason: e instanceof Error ? e.message : 'signature recovery failed' };
+    return { valid: false, signerBound: false, reason: e instanceof Error ? e.message : 'signature recovery failed' };
   }
+  return bindSigner(signer, expected.value, 'unexpected signer');
 }

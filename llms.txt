@@ -14,14 +14,20 @@ ARD catalog: https://tersign.ai/.well-known/ai-catalog.json
 npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4
 ```
 
-That digest is a live counter-signed record (seller `tersign-first`, seq 1). The command recovers
-the EIP-712 signature locally and checks the counter-signed hash chain against the public ledger.
+That digest is a live counter-signed record (seller `tersign-first`, seq 1). Given a digest, the
+command asks the ledger (https://tersign.ai unless `--ledger` names another) and prints that
+ledger's own answer: whether it holds the record and whether its counter-signed hash chain checks
+out. Nothing is verified locally on this path, and the verdict says so: `VALID (ledger-reported)`.
+The local check is a receipt FILE: `npx tersign verify <receipt.json> --signer <issuer address>`
+recovers the EIP-712 signature on your machine and compares it with the issuer address you
+obtained through a channel you trust.
 
 ## Public APIs (no auth)
 
 - One-call disclosure evidence: `POST https://tersign.ai/v1/disclose` body `{"artifact": <SignedActionRecord>}`
-  (action.kind 'disclosure'; signer-keyed — first call self-provisions a free signer-keyed account;
-  rate limits at https://tersign.ai/pricing). CLI: `npx tersign disclose "<text>" --agent-id my-agent`
+  (action.kind 'disclosure'; signer-keyed — the first call self-provisions a free signer-keyed account,
+  unless the key is already registered to an API-key account (409) or the daily provisioning caps
+  are reached (429); rate limits at https://tersign.ai/pricing). CLI: `npx tersign disclose "<text>" --agent-id my-agent`
   — text digested locally, only the digest travels.
 - Data rights for self-provisioned signer-keyed accounts: `POST /v1/wedge/export` and `POST /v1/wedge/erase`, authenticated by a
   personal_sign over `tersign-data-rights-v1:<action>[:digest]:<unixNow>` from the chain's key.
@@ -33,9 +39,15 @@ the EIP-712 signature locally and checks the counter-signed hash chain against t
 
 ## MCP server configuration
 
-Command: `npx tersign` (stdio). Env: `TERSIGN_SELLER_KEY` (required, 0x hex private key),
-`TERSIGN_LEDGER_URL`, `TERSIGN_LEDGER_API_KEY`, `TERSIGN_LEDGER_SELLER_ID`,
-`TERSIGN_ISSUER_NAME`, `TERSIGN_ISSUER_JURISDICTION`.
+Command: `npx tersign` (stdio). No configuration needed; every env var is optional:
+`TERSIGN_SELLER_KEY` (your own 0x hex signing key; unset or empty, the server uses the macOS
+keychain entry `tersign-signer` or `~/.tersign/signer.key` and generates one there on first run;
+if your ledger account has a registered signing key, set that key here: the ledger rejects
+respondent dispute evidence signed by any other key),
+`TERSIGN_LEDGER_URL` (dispute tools; `record_disclosure` defaults to https://tersign.ai),
+`TERSIGN_LEDGER_API_KEY` + `TERSIGN_LEDGER_SELLER_ID` (with the URL: `record_refund` and chained
+`issue_receipt`; the API key also authenticates respondent dispute evidence),
+`TERSIGN_ISSUER_NAME`, `TERSIGN_ISSUER_JURISDICTION`, `TERSIGN_ISSUER_TAX_ID`.
 Tools: issue_receipt, verify_receipt, verify_compliance_record, record_disclosure, record_refund,
 open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
@@ -53,7 +65,7 @@ rejection/timeout) to `~/.tersign/intercepts-YYYY-MM-DD.jsonl`.
 
 - [Why independence — a log about yourself isn't evidence](https://tersign.ai/independence)
 - [SDK README](https://github.com/tersignhq/tersign-js/blob/main/README.md): install, quick start, API surface
-- [Agent skill: tersign-evidence](https://github.com/tersignhq/skills/blob/main/tersign-evidence/SKILL.md): produce/verify/submit evidence from any agent framework
+- [Agent skill: tersign-evidence](https://github.com/tersignhq/skills/blob/main/skills/tersign-evidence/SKILL.md): produce/verify/submit evidence from any agent framework
 - [Live ledger + human verification page](https://tersign.ai)
 
 ## Trust model
@@ -72,7 +84,7 @@ Canonicalization v1 = RFC 8785 (JCS) serialization; digest = keccak256 over the 
 Published byte-level conformance vectors (including the integer-like-key ordering case that
 object-rebuild implementations get wrong) live at
 [test/fixtures/canonical-vectors.json](https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json);
-a sample MINIMAL compliance record with its digests at
+a sample MINIMAL action record with its digests at
 [test/fixtures/compliance-record.json](https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json).
 Reproduce these bytes and digests and your implementation is conformant.
 

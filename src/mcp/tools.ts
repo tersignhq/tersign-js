@@ -1,7 +1,10 @@
 import type { Account } from 'viem/accounts';
 import type { Assure, SettlementContext } from '../assure.js';
 import { verifyReceipt } from '../receipt/eip712.js';
-import { verifyComplianceRecord } from '../compliance/record.js';
+import { recordDigest, verifyComplianceRecord } from '../compliance/record.js';
+import { digestOf } from '../canonical.js';
+import { findLoneSurrogate, signerStatus, type SignerStatus } from '../receipt/binding.js';
+import { verdictSentence } from '../verify-report.js';
 import { signDispute, signEvidence } from '../dispute/sign.js';
 import type { DisputeReason, EvidenceArtifactRef } from '../dispute/types.js';
 import type { LedgerClient } from '../ledgerClient.js';
@@ -64,16 +67,85 @@ export async function issueReceiptTool(deps: McpDeps, args: IssueReceiptArgs) {
   return deps.assure.issueFor(ctx);
 }
 
-export async function verifyReceiptTool(artifact: SignedReceipt, expectedSigner?: string) {
-  return verifyReceipt(artifact, expectedSigner);
+/** What the MCP verify tools return: the library result led by a one-sentence `verdict` and an
+ * explicit `signerStatus`, so an agent that reads only the first field is told what was NOT
+ * checked. Same shape as `python3 -m tersign verify`'s JSON (its verdict says PASS/FAIL where
+ * this says VALID/INVALID, the npm CLI's words). */
+export interface VerifyToolResult {
+  verdict: string;
+  valid: boolean;
+  signer?: `0x${string}`;
+  signerStatus?: SignerStatus;
+  signerBound: boolean;
+  expectedSigner?: string;
+  testKey?: string;
+  digest?: `0x${string}`;
+  unsignedFields?: string[];
+  reason?: string;
+}
+
+function report(
+  r: { valid: boolean; signer?: `0x${string}`; signerBound: boolean; testKey?: string; unsignedFields?: string[]; reason?: string },
+  expectedSigner: string | undefined,
+  digest: `0x${string}` | undefined,
+  what: string,
+): VerifyToolResult {
+  const status = signerStatus(r, expectedSigner);
+  // Key order is the Python CLI's: verdict first, the signer and its status next to each other.
+  return {
+    verdict: verdictSentence(r, expectedSigner, 'expectedSigner', what),
+    valid: r.valid,
+    ...(r.signer ? { signer: r.signer } : {}),
+    ...(status ? { signerStatus: status } : {}),
+    signerBound: r.signerBound,
+    ...(expectedSigner ? { expectedSigner } : {}),
+    ...(r.testKey ? { testKey: r.testKey } : {}),
+    ...(digest ? { digest } : {}),
+    ...(r.unsignedFields?.length ? { unsignedFields: r.unsignedFields } : {}),
+    ...(r.reason ? { reason: r.reason } : {}),
+  };
+}
+
+/** A digest failure (a float, an out-of-range integer) is a FAIL: an artifact with no canonical
+ * content address cannot be the one a ledger recorded. The Python twin decides it the same way. */
+function tryDigest(f: () => `0x${string}`): { digest?: `0x${string}`; error?: string } {
+  try {
+    return { digest: f() };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** A lone UTF-16 surrogate anywhere in what is verified: UTF-8 cannot carry it, so the signed and
+ * digested text is U+FFFD, not what the object says. Package text only — no path, since key names
+ * are chosen by whoever wrote the object. */
+const LONE_SURROGATE_REASON =
+  'a string in the object holds a lone UTF-16 surrogate (a \\uD800-\\uDFFF escape) that UTF-8 cannot carry: the signed and digested text would be U+FFFD, not this text';
+
+export async function verifyReceiptTool(artifact: SignedReceipt, expectedSigner?: string): Promise<VerifyToolResult> {
+  if (findLoneSurrogate(artifact) !== null) {
+    return report({ valid: false, signerBound: false, reason: LONE_SURROGATE_REASON }, expectedSigner, undefined, 'receipt');
+  }
+  const r = await verifyReceipt(artifact, expectedSigner);
+  if (!r.signer) return report(r, expectedSigner, undefined, 'receipt');
+  const d = tryDigest(() => digestOf(artifact));
+  if (d.error !== undefined) {
+    return report({ valid: false, signerBound: false, reason: `cannot compute the canonical digest: ${d.error}` }, expectedSigner, undefined, 'receipt');
+  }
+  return report(r, expectedSigner, d.digest, 'receipt');
 }
 
 export async function verifyRecordTool(
   record: ComplianceRecordV1,
   attestation: SignedComplianceRecord['attestation'],
   expectedSigner?: string,
-) {
-  return verifyComplianceRecord({ record, attestation }, expectedSigner);
+): Promise<VerifyToolResult> {
+  if (findLoneSurrogate({ record, attestation }) !== null) {
+    return report({ valid: false, signerBound: false, reason: LONE_SURROGATE_REASON }, expectedSigner, undefined, 'compliance record');
+  }
+  const r = await verifyComplianceRecord({ record, attestation }, expectedSigner);
+  const d = tryDigest(() => recordDigest(record));
+  return report(r, expectedSigner, d.digest, 'compliance record');
 }
 
 export async function recordRefundTool(deps: McpDeps, originalDigest: `0x${string}`, amount: string, reason: string) {

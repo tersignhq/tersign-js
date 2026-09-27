@@ -24,10 +24,19 @@ npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213d
 ```
 
 ```text
-ledger: counter-signed OK (seller tersign-first, seq 1 …) VALID
+ledger:    https://tersign.ai
+           reports: found, counter-signed chain intact (seller tersign-first, seq 1, …) — not checked locally
+VALID (ledger-reported) — https://tersign.ai reports the record and its counter-signed chain; nothing was verified locally
 ```
 
-`npx tersign verify <receipt.json | 0xdigest> [--ledger url]` recovers the EIP-712 signature **locally**. A bare digest is then checked against the Tersign ledger unless `--ledger` names another; a receipt file verifies offline and touches no chain at all. The ledger consulted is always printed. Prefer raw HTTP? The same proof, no CLI:
+`npx tersign verify <receipt.json | 0xdigest> [--signer 0xaddr] [--ledger url]` takes a receipt file or a digest.
+
+- A **receipt file** is checked locally and touches no network unless you add `--ledger`. The EIP-712 signature is recovered, and `--signer` compares it with the issuer's address, which you take from the issuer through a channel you trust, never from the receipt. Without `--signer` the signer is reported `UNAUTHENTICATED` and the verdict reads `VALID (signer UNAUTHENTICATED)`: recovery yields an address for any payload, so an edited receipt reaches that same line with a different address.
+- A receipt signed with a **published test key** (the 20 Hardhat/Anvil default dev-mnemonic accounts, or private key 1, 2 or 3) is flagged `published test key` either way: anyone can produce that signature. Fields in the file that the signature does not cover are listed by name, and a signed field in another JSON type (`"version": "1"`) is refused. The signature must be the one canonical encoding (`0x` + 130 lower-case hex digits, v 27/28, low-s): a re-encoding of a genuine signature (v 0/1, upper-case hex, the high-s twin) also recovers the issuer, under a different digest, so it is refused.
+- The file is a receipt, `{receipt, record}`, or an evidence-bundle record file (`records/NNNNNN.json`, verdict qualified `record artifact only`: its chain fields are not checked here). Anything else that nests a receipt — a second receipt at the top level, or any other field beside it — is refused, because a reader would take those fields for the receipt that was checked. Duplicate keys and non-integer numbers are refused too.
+- A **digest** is looked up on the Tersign ledger unless `--ledger` names another; the answer is that ledger's own counter-signed chain check, nothing in it is re-verified locally, and the verdict says so (`VALID (ledger-reported)`). The ledger consulted is always printed. The local check is the receipt file with `--signer`.
+
+Exit status: `0` valid (read the last line — for a file, a bare `VALID` means a bound, non-test-key signer on a receipt or `{receipt, record}`; a digest is always `VALID (ledger-reported)`), `1` invalid, `2` usage (an unknown or valueless flag, `--signer` with a digest, a missing or non-JSON file). Prefer raw HTTP? The same proof, no CLI:
 
 ```sh
 curl https://tersign.ai/v1/receipts/0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4/verify
@@ -41,7 +50,7 @@ Counter-signed evidence that your agent presented a disclosure — one command, 
 npx tersign disclose "You are chatting with an AI assistant." --medium chat --agent-id my-agent
 ```
 
-The text is digested **locally** (only the digest travels — data-minimization by construction). Your key signs the record; the ledger counter-signs it into a per-signer hash chain whose head is submitted for Bitcoin anchoring on a six-hourly cron. First call self-provisions a free signer-keyed account bound set-once to your key (key resolution: `TERSIGN_SELLER_KEY` env → macOS keychain `tersign-signer` → `~/.tersign/signer.key`, created on first use). Free tier is quota- and rate-limited — [limits](https://tersign.ai/pricing). What this is: independently verifiable evidence the disclosure was attested at that time. What it is not: a compliance certification.
+The text is digested **locally** (only the digest travels — data-minimization by construction). Your key signs the record; the ledger counter-signs it into a per-signer hash chain whose head is submitted for Bitcoin anchoring on a six-hourly cron. The first call self-provisions a free signer-keyed account bound set-once to your key, unless that key is already registered to an API-key ledger account (409: submit through that account) or the day's provisioning caps are reached (429). Key resolution: `TERSIGN_SELLER_KEY` env → macOS keychain `tersign-signer` → `~/.tersign/signer.key`, created on first use. Free tier is quota- and rate-limited — [limits](https://tersign.ai/pricing). What this is: independently verifiable evidence the disclosure was attested at that time. What it is not: a compliance certification.
 
 ## Chain of Custody
 
@@ -112,25 +121,27 @@ when that stabilizes. It makes no conformance claim to that draft.
   "mcpServers": {
     "tersign": {
       "command": "npx",
-      "args": ["tersign"],
-      "env": { "TERSIGN_SELLER_KEY": "0x<your-seller-key>" }
+      "args": ["tersign"]
     }
   }
 }
 ```
 
+No configuration is needed. With `TERSIGN_SELLER_KEY` unset or empty, the server signs with the key in the macOS keychain (`tersign-signer`) or `~/.tersign/signer.key`, and generates one there on first run; the key never leaves your machine. Set `TERSIGN_SELLER_KEY` only to bring your own.
+
 **Tools** — `issue_receipt` · `verify_receipt` · `verify_compliance_record` · `record_disclosure` · `record_refund` · `open_dispute` · `submit_dispute_evidence` · `adjudicate_dispute` · `get_dispute`
 
 | Env var | Required | Purpose |
 |---|---|---|
-| `TERSIGN_SELLER_KEY` | yes | 0x-prefixed private key that signs your receipts and records |
-| `TERSIGN_LEDGER_URL` | no | hosted ledger for counter-signing + chain checks |
-| `TERSIGN_LEDGER_API_KEY` | no | your seller API key on that ledger |
-| `TERSIGN_LEDGER_SELLER_ID` | no | your seller id on that ledger |
+| `TERSIGN_SELLER_KEY` | no | your own 0x-prefixed signing key; unset or empty, the keychain or keyfile key is used (generated on first run). If your ledger account has a registered signing key, set that key here: the ledger rejects respondent dispute evidence signed by any other key |
+| `TERSIGN_LEDGER_URL` | no | ledger for counter-signing + chain checks; needed by the dispute tools; `record_disclosure` defaults to `https://tersign.ai` |
+| `TERSIGN_LEDGER_API_KEY` | no | your seller API key on that ledger; with the seller id, enables `record_refund` and chained `issue_receipt`; also authenticates respondent dispute evidence |
+| `TERSIGN_LEDGER_SELLER_ID` | no | your seller id on that ledger; with the API key, enables `record_refund` and chained `issue_receipt` |
 | `TERSIGN_ISSUER_NAME` | no | issuer name stamped on action records |
 | `TERSIGN_ISSUER_JURISDICTION` | no | issuer jurisdiction stamped on action records |
+| `TERSIGN_ISSUER_TAX_ID` | no | issuer tax / business-registration id stamped on action records |
 
-Cold to counter-signed in one session: call `issue_receipt`, then check the issued receipt's digest with `npx tersign verify <digest> --ledger <url>`.
+Cold to counter-signed in one session, with no configuration: call `record_disclosure`, then check the `digest` it returns with `npx tersign verify <digest>` (a bare digest checks against https://tersign.ai). `issue_receipt` counter-signs as well once `TERSIGN_LEDGER_URL`, `TERSIGN_LEDGER_API_KEY` and `TERSIGN_LEDGER_SELLER_ID` are set; without them it returns a locally signed, unchained receipt.
 
 The agent skill `tersign-evidence` ships at [tersignhq/skills](https://github.com/tersignhq/skills).
 
@@ -148,7 +159,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Surface | Address |
 |---|---|
 | npm package | `tersign` — https://www.npmjs.com/package/tersign |
-| MCP registry | `io.github.tersignhq/evidence` — `npx tersign` needs no configuration; the first call self-provisions a signer-keyed account |
+| MCP registry | `io.github.tersignhq/evidence` — `npx tersign` needs no configuration; `record_disclosure`'s first call self-provisions a signer-keyed account, unless the key is registered to an API-key account (409) or the daily provisioning caps are reached (429) |
 | ARD catalog (Agentic Resource Discovery) | https://tersign.ai/.well-known/ai-catalog.json |
 | Verify API | `GET https://tersign.ai/v1/receipts/{digest}/verify` |
 | Envelope API | `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
@@ -156,7 +167,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Ledger signer | `GET https://tersign.ai/v1/ledger` |
 | Bundle verifier, out-of-band | https://tersign.ai/verify/v1/ — `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`. A bundle ships its own checker; for evidence from an interested party fetch this copy and diff the two. |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
-| Conformance vectors (RFC 8785 + keccak256) | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json |
+| Conformance vectors (RFC 8785 + keccak256, two-sided) | https://github.com/tersignhq/evidence-record-conformance |
 | Sample action record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
 | Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4` |
 
@@ -189,7 +200,7 @@ If a maintainer ever asks you to reopen work elsewhere because of this, that is 
   <img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/seal.svg" alt="Tersign seal" width="72">
 </p>
 
-<p align="center"><sub>MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · <code>tersign</code> reserved on PyPI</sub></p>
+<p align="center"><sub>MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · Python verifier: <code>pip install tersign</code></sub></p>
 
 <p align="center"><sub><b>Venues rotate. The transcript endures.</b></sub></p>
 

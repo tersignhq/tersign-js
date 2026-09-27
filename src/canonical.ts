@@ -9,25 +9,69 @@ import { concatHex, keccak256, numberToHex, stringToHex, toBytes, type Hex } fro
  * sort-then-stringify round-trip (JCS orders them "1","10","2"). Byte-identical to the old
  * serializer for every shape without integer-like or control-char keys — the genesis receipt
  * digest and all pinned wire vectors are unchanged. */
-export function canonicalStringify(value: unknown): string {
-  return serialize(value) as string;
+/** Nesting budget for untrusted inputs, byte-for-byte the ledger's MAX_CANONICAL_DEPTH and
+ * canonical.py's MAX_DEPTH. The SDK copy shipped without one: a 65-deep value digested here
+ * and was refused by every Python verifier, so the SDK could sign a record no independent
+ * checker could ever verify. */
+export const MAX_CANONICAL_DEPTH = 64;
+
+export class CanonicalDepthError extends Error {
+  constructor() {
+    super(`value nests deeper than ${MAX_CANONICAL_DEPTH} levels`);
+  }
 }
 
-function serialize(value: unknown): string | undefined {
+/** The digest domain is ints/strings/bools/null/objects/arrays — canonical.py has said so
+ * since it was written; this side simply never enforced it, and `JSON.stringify` is not a
+ * specification. Two consequences, both confirmed against the running code:
+ *
+ *   digestOf({amount: 9007199254740993}) === digestOf({amount: 9007199254740992})
+ *   digestOf({n: 1e400})                 === digestOf({n: null})
+ *
+ * Distinct records, identical bytes, identical digest, identical signature. For a system whose
+ * whole claim is "this digest commits to this record", a non-injective canonical form is the
+ * deepest defect available, and it is reachable: 2^53-1 is about 9.007e15, below any
+ * 18-decimal token amount over 0.009 ETH and below any nanosecond timestamp.
+ *
+ * Floats are rejected for the reason canonical.py already states — the domain boundary is the
+ * number TOKEN, and a float that survives a parse round-trip is precisely the divergence class
+ * the conformance suite exists to kill. Number.isSafeInteger settles all four cases at once:
+ * non-integer, |n| >= 2^53, NaN and Infinity. */
+export class CanonicalDomainError extends Error {
+  constructor(value: number) {
+    super(
+      `${Number.isFinite(value) ? value : String(value)} is outside the Tersign digest domain ` +
+        '(integers within +/-(2^53-1) only: no floats, NaN or Infinity)',
+    );
+  }
+}
+
+export function canonicalStringify(value: unknown): string {
+  return serialize(value, 0) as string;
+}
+
+function serialize(value: unknown, depth: number): string | undefined {
+  if (depth > MAX_CANONICAL_DEPTH) throw new CanonicalDepthError();
   if (value === null) return 'null';
   if (Array.isArray(value)) {
-    return '[' + Array.from(value, (v) => serialize(v) ?? 'null').join(',') + ']';
+    return '[' + Array.from(value, (v) => serialize(v, depth + 1) ?? 'null').join(',') + ']';
   }
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
     const parts: string[] = [];
     for (const key of Object.keys(obj).sort()) {
-      const s = serialize(obj[key]);
+      const s = serialize(obj[key], depth + 1);
       if (s !== undefined) parts.push(JSON.stringify(key) + ':' + s);
     }
     return '{' + parts.join(',') + '}';
   }
-  // string/number/boolean serialize per JCS; undefined/function/symbol yield undefined (dropped)
+  // Numbers carry the domain guard: JSON.stringify would silently round 2^53+1 down and fold
+  // Infinity to null, and both of those are collisions, not encodings.
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) throw new CanonicalDomainError(value);
+    return String(value);
+  }
+  // string/boolean serialize per JCS; undefined/function/symbol yield undefined (dropped)
   return JSON.stringify(value);
 }
 

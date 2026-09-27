@@ -29,8 +29,10 @@ if (sub === undefined || sub === 'mcp') {
       'tersign: this starts the MCP server, which speaks JSON-RPC over stdin — nothing to see\n' +
         'at a prompt. Wire it into your MCP client config:\n\n' +
         '  { "mcpServers": { "tersign": { "command": "npx", "args": ["tersign"] } } }\n\n' +
-        'No key needed: the first call self-provisions a signer-keyed account (OS keychain,\n' +
-        'else ~/.tersign/signer.key). Set TERSIGN_SELLER_KEY to use your own.\n\n' +
+        'No key needed: a key is generated and kept in the OS keychain (else ~/.tersign/signer.key),\n' +
+        "and record_disclosure's first call self-provisions a signer-keyed account on the ledger,\n" +
+        'unless that key is registered to an API-key account (409) or the daily provisioning caps\n' +
+        'are reached (429). Set TERSIGN_SELLER_KEY to use your own key.\n\n' +
         "Just exploring? Try:  tersign help   ·   tersign verify <receipt.json | 0xdigest> [--ledger url]",
     );
     process.exit(1);
@@ -51,7 +53,9 @@ if (sub === undefined || sub === 'mcp') {
       '  tersign                 start the MCP server (stdio)\n' +
       '  tersign mcp             same, explicit\n' +
       '  tersign verify <receipt.json | 0xdigest> [--signer 0xaddr] [--ledger url]\n' +
-      '                          verify a receipt: local signature recovery + public chain check\n' +
+      '                          verify a receipt FILE locally: --signer binds it to the\n' +
+      "                          issuer's address (without it the signer is reported\n" +
+      '                          UNAUTHENTICATED); or ask a ledger about a DIGEST\n' +
       '  tersign disclose "<text>" [--medium chat] [--agent-id id] [--url resourceUrl]\n' +
       '                          counter-signed disclosure evidence — text digested locally,\n' +
       '                          only the digest travels; key created on first use\n' +
