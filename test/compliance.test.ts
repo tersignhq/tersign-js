@@ -35,6 +35,24 @@ describe('compliance record', () => {
     expect(result.valid).toBe(true);
   });
 
+  it('builds the MINIMAL canonicalizationVersion member and leaves seq to the issuer', async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const receipt = await signReceipt(receiptPayload, account);
+    const record = buildMinimalRecord(issuer, {
+      receipt,
+      supplyDescription: 'A',
+      tax: { scheme: 'none', currency: 'USD' },
+      issuedAt: receiptPayload.issuedAt,
+    });
+    expect(record.canonicalizationVersion).toBe(1);
+    expect('seq' in record).toBe(false);
+    // the member is inside the digest the attestation signs
+    const signed = await signComplianceRecord(record, account);
+    const stripped = { ...signed, record: { ...signed.record } };
+    delete (stripped.record as { canonicalizationVersion?: 1 }).canonicalizationVersion;
+    expect((await verifyComplianceRecord(stripped, account.address)).valid).toBe(false);
+  });
+
   it('detects post-signing record mutation', async () => {
     const account = privateKeyToAccount(generatePrivateKey());
     const receipt = await signReceipt(receiptPayload, account);

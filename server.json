@@ -6,12 +6,12 @@
     "url": "https://github.com/tersignhq/tersign-js",
     "source": "github"
   },
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tersign",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "transport": {
         "type": "stdio"
       },
@@ -73,7 +73,7 @@
         "finance",
         "security"
       ],
-      "summary": "Tersign is the evidence layer for agent commerce (B2B / machine-to-machine). Agents issue seller-signed EIP-712 receipts and action records; the hosted ledger at https://tersign.ai optionally counter-signs them into per-seller hash chains that anyone can verify without an account. Disputes export as venue-ready evidence envelopes (generic / internet-court / kleros / uma). The SDK and MCP server work fully standalone without the hosted ledger: issue and verify offline, counter-sign later. No configuration is needed: every environment variable is optional, and the server generates and keeps a local signing key on first run when none is set. record_disclosure's first call self-provisions a free signer-keyed account on the ledger (https://tersign.ai by default), except when that key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing). Record shapes are pinned by public conformance vectors: https://github.com/tersignhq/evidence-record-conformance (Apache-2.0, CI-tested). Verify a live counter-signed record right now: npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai",
+      "summary": "Tersign is the evidence layer for agent commerce (B2B / machine-to-machine). Agents issue seller-signed EIP-712 receipts and action records; the hosted ledger at https://tersign.ai optionally counter-signs them into per-seller hash chains that anyone can verify without an account. Disputes export as venue-ready evidence envelopes (generic / internet-court / kleros / uma). The SDK and MCP server work fully standalone without the hosted ledger: issue and verify offline, counter-sign later. No configuration is needed: every environment variable is optional, and the server generates and keeps a local signing key on first run when none is set. record_disclosure's first call self-provisions a free signer-keyed account on the ledger (https://tersign.ai by default), except when that key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing). Canonical bytes, digests and chain construction are pinned by public two-sided conformance vectors: https://github.com/tersignhq/evidence-record-conformance (Apache-2.0, CI-tested). Verify a live counter-signed record right now: npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4 --ledger https://tersign.ai",
       "tags": [
         "evidence",
         "receipts",

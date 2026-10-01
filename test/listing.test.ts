@@ -490,3 +490,77 @@ describe('per-variable text states only what the code enforces', () => {
     }
   });
 });
+
+// What the ledger counter-signs on a paid call. The ledger signs the chain link
+// keccak256(receiptDigest ‖ prevDigest ‖ uint64be(seq)) over the RECEIPT (src/canonical.ts
+// chainLinkDigest is the verifier's copy of that construction: three inputs, none of them the
+// compliance record). The record travels to the ledger beside the receipt and its digest is
+// stored, but nothing is signed over it; its only tie to the receipt is the seller's own
+// attestation, whose signed payload names receiptDigest (src/compliance/record.ts). The first
+// test below reads these surfaces: the README, llms.txt, the server.json summary, the package.json
+// description, every MCP tool description, and the two JSDoc blocks that ship in the .d.ts and
+// describe the paid-call path (the `Assure` class and `withAssure`). Other JSDoc is not read.
+//
+// What this cannot see: a paraphrase that avoids "compliance record", "both" and "records are
+// counter-signed" — an added sentence saying the ledger counter-signs "the record" passes (checked
+// by mutation, 2026-09-29). The second test pins the four paragraphs that describe the paid-call
+// path, so the correct statement cannot be removed from any of them.
+describe('what the ledger counter-signs on a paid call, as each surface states it', () => {
+  const sentences = (t: string) => t.split(/(?<=[.;])\s+|\n(?=\S)|\n\s*\n|\|/).map((x) => x.replace(/\s+/g, ' '));
+  const assureDoc = (read('src/assure.ts').match(/\/\*\*((?:(?!\*\/)[\s\S])*)\*\/\s*export class Assure\b/)?.[1] ?? '')
+    .replace(/\n\s*\*\s?/g, ' ')
+    .replace(/\s+/g, ' ');
+  const withAssureDoc = (
+    read('src/adapter/x402.ts').match(/\/\*\*((?:(?!\*\/)[\s\S])*)\*\/\s*export function withAssure\b/)?.[1] ?? ''
+  )
+    .replace(/\n\s*\*\s?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const surfaces = (): Record<string, string> => ({
+    README: readme,
+    'llms.txt': llms,
+    'server.json summary': publisher.summary ?? '',
+    'package.json description': (JSON.parse(read('package.json')) as { description: string }).description,
+    'Assure JSDoc (ships in the .d.ts)': assureDoc,
+    'withAssure JSDoc (ships in the .d.ts)': withAssureDoc,
+    ...Object.fromEntries(bare.tools.map((t) => [`${t.name} description`, t.description ?? ''])),
+  });
+
+  it('no sentence puts the compliance record, or "both" artifacts, under the ledger counter-signature', () => {
+    expect(bare.tools.length).toBeGreaterThan(0);
+    expect(assureDoc.length).toBeGreaterThan(0);
+    expect(withAssureDoc).toMatch(/^Wrap an x402-protected handler/);
+    let netted = 0;
+    for (const [surface, text] of Object.entries(surfaces())) {
+      for (const s of sentences(text)) {
+        if (!/counter-?sign/i.test(s)) continue;
+        if (!/compliance(?:-fields)? record|\bboth\b|\brecords are counter-signed\b/i.test(s)) continue;
+        netted++;
+        expect(s, `${surface}: ${s}`).toMatch(/compliance-fields record is not counter-signed/i);
+      }
+    }
+    // The four paid-call surfaces each carry one such sentence: the net is not empty.
+    expect(netted).toBeGreaterThanOrEqual(4);
+  });
+
+  it('the paid-call paragraphs name the receipt as counter-signed and the seller signature as the record binding', () => {
+    const paragraphs: Record<string, string> = {
+      'README withAssure': readme.match(/^`withAssure\(\)` wraps[^\n]*$/m)?.[0] ?? '',
+      'llms.txt withAssure': llms.split(/^`withAssure\(handler/m)[1]?.split(/\n\s*\n/)[0] ?? '',
+      'issue_receipt description': bare.tools.find((t) => t.name === 'issue_receipt')?.description ?? '',
+      'Assure JSDoc': assureDoc,
+    };
+    for (const [surface, t] of Object.entries(paragraphs)) {
+      const flat = t.replace(/\s+/g, ' ');
+      expect(flat.length, surface).toBeGreaterThan(0);
+      expect(flat, surface).toMatch(/the ledger counter-signs the receipt/);
+      expect(flat, surface).toMatch(/the compliance-fields record is not counter-signed/);
+      expect(flat, surface).toMatch(/bound to its receipt only by (your|the seller's) own signature/);
+    }
+  });
+
+  it('the Assure JSDoc points at the header placement, not the legacy body helper', () => {
+    expect(assureDoc).toMatch(/`attachToSettlementResponse`/);
+    expect(assureDoc).not.toMatch(/attachToExtensions/);
+  });
+});

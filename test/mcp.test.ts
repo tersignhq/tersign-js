@@ -3,7 +3,10 @@ import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { Assure } from '../src/assure.js';
 import { verifyDispute } from '../src/dispute/sign.js';
 import type { SignedDispute } from '../src/dispute/types.js';
-import { issueReceiptTool, openDisputeTool, verifyReceiptTool, verifyRecordTool } from '../src/mcp/tools.js';
+import { issueReceiptTool, openDisputeTool, recordRefundTool, verifyReceiptTool, verifyRecordTool } from '../src/mcp/tools.js';
+import { LedgerClient } from '../src/ledgerClient.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { buildServer, envDeps, MCP_SERVER_IDENTITY } from '../src/mcp/server.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +33,40 @@ describe('MCP tools', () => {
 
   it('buildServer registers without a transport (wiring smoke test)', () => {
     expect(() => buildServer(deps)).not.toThrow();
+  });
+});
+
+describe('MCP tool descriptions promise only what the ledger does', () => {
+  async function descriptions(): Promise<Map<string, string>> {
+    const server = buildServer(deps);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    const client = new Client({ name: 'probe', version: '0' });
+    await client.connect(clientSide);
+    const { tools } = await client.listTools();
+    await client.close();
+    return new Map(tools.map((t) => [t.name, t.description ?? '']));
+  }
+
+  it('record_refund: returns exactly the members /v1/refunds answers with, and claims no chain entry', async () => {
+    const desc = (await descriptions()).get('record_refund') ?? '';
+    // /v1/refunds inserts a pending row with no digest and no chain append, and answers { id, status }.
+    const ledgerAnswer = { id: 'f1', status: 'pending' };
+    const fetchImpl = (async () => Response.json(ledgerAnswer, { status: 201 })) as unknown as typeof fetch;
+    const ledger = new LedgerClient({ url: 'https://ledger.invalid', apiKey: 'k', sellerId: 's', fetchImpl });
+    const result = await recordRefundTool({ ...deps, ledger }, ('0x' + 'ab'.repeat(32)) as `0x${string}`, '1.00', 'r');
+    const returns = /Returns \{ ([^}]*) \}/.exec(desc)?.[1] ?? '';
+    const promised = returns.split(',').map((m) => m.trim().split(':')[0]!.trim());
+    expect(promised).toEqual(Object.keys(result));
+    expect(desc).toMatch(/PENDING/);
+    expect(desc).toMatch(/NOT counter-signed/);
+    expect(desc).not.toMatch(/becomes its own counter-signed entry|counter-signature and sequence number/);
+  });
+
+  it('adjudicate_dispute: no claim that the rulebook is public; the refund side effect is a pending entry', async () => {
+    const desc = (await descriptions()).get('adjudicate_dispute') ?? '';
+    expect(desc).not.toMatch(/rulebook is public|recomputable by anyone/i);
+    expect(desc).toMatch(/PENDING refund entry/);
   });
 });
 

@@ -200,8 +200,8 @@ export async function submitEvidenceTool(deps: McpDeps, args: SubmitEvidenceArgs
   });
 }
 
-/** Trigger deterministic adjudication (public — the rulebook is recomputable, so anyone
- * may pull the trigger once the route guard allows it). */
+/** Trigger deterministic adjudication (no API key — the outcome is a deterministic function of
+ * the recorded inputs, so anyone may pull the trigger once the route guard allows it). */
 export async function adjudicateDisputeTool(deps: McpDeps, disputeDigest: `0x${string}`) {
   if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
   return ledgerFetch(deps.ledgerHttp.url, `/v1/disputes/${disputeDigest}/adjudicate`, { body: {} });

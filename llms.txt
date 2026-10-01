@@ -14,7 +14,12 @@ ARD catalog: https://tersign.ai/.well-known/ai-catalog.json
 npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4
 ```
 
-That digest is a live counter-signed record (seller `tersign-first`, seq 1). Given a digest, the
+That digest is a live counter-signed record (seller `tersign-first`, seq 1): the genesis record, a
+self-signed demo. Tersign signed it as seller and named its own key as payer, so its EIP-712 payload signature
+(x402 offer-and-receipt §3.2/§5.3: domain {name: "x402 receipt", version: "1", chainId: 1},
+Receipt(uint256 version,string network,string resourceUrl,string payer,uint256 issuedAt,string transaction),
+payload as served) recovers to the payload's own payer, 0x36f82906859E5B0bd076069f8cdfAea355358b14.
+https://tersign.ai/v1/genesis serves the record with the recipe for each of its signatures. Given a digest, the
 command asks the ledger (https://tersign.ai unless `--ledger` names another) and prints that
 ledger's own answer: whether it holds the record and whether its counter-signed hash chain checks
 out. Nothing is verified locally on this path, and the verdict says so: `VALID (ledger-reported)`.
@@ -51,6 +56,21 @@ respondent dispute evidence signed by any other key),
 Tools: issue_receipt, verify_receipt, verify_compliance_record, record_disclosure, record_refund,
 open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
 
+## x402 seller middleware
+
+`withAssure(handler, { assure })` wraps a fetch-style x402 handler (`(Request) => Response`).
+On a settled call it merges the seller-signed receipt into `extensions["offer-receipt"].info.receipt`
+and the compliance-fields record + attestation into `extensions["compliance-fields"].info` of the
+base64 JSON settlement response in the `PAYMENT-RESPONSE` header (`X-PAYMENT-RESPONSE` on v1);
+the response body is untouched unless `legacyBodyPlacement: true`. On a 402 it adds
+`extensions["compliance-fields"]` to the `PAYMENT-REQUIRED` header (`advertise: false` turns
+that off). When the `Assure` has a ledger configured, the ledger counter-signs the receipt into the
+seller's chain; the compliance-fields record is not counter-signed, and is bound to its receipt only by the
+seller's own signature, which covers the receipt's digest. When the receipt cannot be issued (a
+settlement network that is neither CAIP-2 nor a v1 name in its table, e.g. `"bsc"`; a ledger error), the paid
+response is returned exactly as the handler produced it, with no receipt, and the error goes to
+`onError` (default `console.error`); with idempotency on, the payment id replays that response.
+
 ## MCP audit-capture proxy (experimental)
 
 `npx tersign intercept [--events m1,m2] [--agent-id id] [--ledger url] -- <mcp server command>`
@@ -84,7 +104,7 @@ Canonicalization v1 = RFC 8785 (JCS) serialization; digest = keccak256 over the 
 Published byte-level conformance vectors (including the integer-like-key ordering case that
 object-rebuild implementations get wrong) live at
 [test/fixtures/canonical-vectors.json](https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/canonical-vectors.json);
-a sample MINIMAL action record with its digests at
+a sample MINIMAL compliance-fields record with its digests at
 [test/fixtures/compliance-record.json](https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json).
 Reproduce these bytes and digests and your implementation is conformant.
 

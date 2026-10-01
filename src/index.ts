@@ -29,6 +29,7 @@ export {
 } from './receipt/eip712.js';
 export { PUBLISHED_TEST_KEYS, publishedKeyLabel } from './receipt/known-keys.js';
 export { signerStatus, type SignerBinding, type SignerStatus } from './receipt/binding.js';
+export { toCaip2Network } from './receipt/network.js';
 export {
   COMPLIANCE_DOMAIN,
   COMPLIANCE_TYPES,
@@ -104,8 +105,26 @@ export {
 } from './evidence/action.js';
 export { recordDisclosure, type RecordDisclosureOptions, type RecordDisclosureResult } from './evidence/disclose.js';
 export { LedgerClient, type LedgerConfig, type CountersignResult } from './ledgerClient.js';
-export { Assure, attachToExtensions, type AssureConfig, type SettlementContext, type IssuedReceipt } from './assure.js';
-export { withAssure, extractSettlement, extractPaymentPayload, type WithAssureConfig, type SettlementInfo } from './adapter/x402.js';
+export {
+  Assure,
+  attachToExtensions,
+  attachToSettlementResponse,
+  OFFER_RECEIPT_RESPONSE_SCHEMA,
+  type AssureConfig,
+  type SettlementContext,
+  type IssuedReceipt,
+} from './assure.js';
+export {
+  withAssure,
+  extractSettlement,
+  extractPaymentPayload,
+  encodeX402Header,
+  decodeX402Header,
+  COMPLIANCE_FIELDS_ADVERTISEMENT_SCHEMA,
+  type WithAssureConfig,
+  type SettlementInfo,
+  type ComplianceAdvertisement,
+} from './adapter/x402.js';
 export {
   ENVELOPE_STATEMENT_MAX_CHARS,
   VENUE_SUBMISSION_MAX_CHARS,

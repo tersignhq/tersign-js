@@ -40,7 +40,9 @@ export class LedgerClient {
     return (await res.json()) as CountersignResult;
   }
 
-  async recordRefund(originalDigest: `0x${string}`, amount: string, reason: string): Promise<{ id: string }> {
+  /** Log a refund against a receipt on this seller's chain. The ledger stores a PENDING refund
+   * entry; it is not counter-signed or chained, so the answer carries no digest or seq. */
+  async recordRefund(originalDigest: `0x${string}`, amount: string, reason: string): Promise<{ id: string; status: string }> {
     const res = await this.f(`${this.cfg.url}/v1/refunds`, {
       method: 'POST',
       headers: {
@@ -50,7 +52,7 @@ export class LedgerClient {
       body: JSON.stringify({ originalDigest, amount, reason }),
     });
     if (!res.ok) throw new Error(`ledger refund record failed: ${res.status} ${await res.text()}`);
-    return (await res.json()) as { id: string };
+    return (await res.json()) as { id: string; status: string };
   }
 
   /** Fetch the venue-neutral evidence envelope for a chained artifact (public endpoint — works

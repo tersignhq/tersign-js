@@ -11,8 +11,8 @@ import type {
 } from './types.js';
 import { bindSigner, isPlainObject, parseExpectedSigner, signatureError, type SignerBinding } from '../receipt/binding.js';
 
-/** Canonical domain per the compliance-fields extension spec (x402-foundation/x402#2853).
- * Migrated from the vendor domain 'tersign compliance-record' on 2026-07-14 while ZERO
+/** EIP-712 domain named in the proposed compliance-fields extension (x402-foundation/x402#2853,
+ * open — proposed, not settled spec). Migrated from the vendor domain 'tersign compliance-record' on 2026-07-14 while ZERO
  * production compliance records existed — a free change then, a breaking wire change after. */
 export const COMPLIANCE_DOMAIN = { name: 'compliance-fields', version: '1', chainId: 1n } as const;
 
@@ -37,7 +37,8 @@ export interface IssuerConfig {
   name: string;
   jurisdiction: string;
   taxId?: string;
-  /** default 7 — HK IRO s.51C floor, ≥ MiCA 5+2 */
+  /** default 7 where no longer period applies (HK IRO s.51C, MiCA 5+2) — set the longest period
+   * that applies to you (e.g. DE § 14b UStG: eight years); 7 is a default, not a sufficiency claim */
   retentionYears?: number;
 }
 
@@ -52,11 +53,17 @@ export interface MinimalRecordInput {
   adjustment?: Adjustment;
 }
 
-/** MINIMAL tier ≈ EU VAT Art 226b simplified-invoice content — legally sufficient for
- * sub-€100 supplies EU-wide, and the default for machine-to-machine micro-receipts. */
+/** Build a record carrying the MINIMAL members of the proposed compliance-fields extension —
+ * content isomorphic to the EU VAT Art 226b simplified invoice. Whether it suffices as an invoice
+ * is decided by the invoicing rules that apply to the supply (Art 219a): Art 220a(1)(a) makes
+ * every Member State allow simplified invoices up to EUR 100, a Member State may require further
+ * details on them (Art 226b), and some supplies can never use one (Art 220(1)(2)-(3), Art 220a(2),
+ * and national bars). MINIMAL needs `tax.amount` whenever `tax.scheme` is not `none`; that is the caller's
+ * input. `seq` is not set here: it is the issuer's to assign before attestation. */
 export function buildMinimalRecord(issuer: IssuerConfig, input: MinimalRecordInput): ComplianceRecordV1 {
   const record: ComplianceRecordV1 = {
     version: 1,
+    canonicalizationVersion: 1,
     receiptDigest: digestOf(input.receipt),
     issuedAt: input.issuedAt,
     issuer: {

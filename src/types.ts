@@ -1,7 +1,7 @@
 /** Wire types for the merged x402 `offer-receipt` extension (spec: x402-foundation/x402
- * specs/extensions/extension-offer-and-receipt.md, fetched 2026-07-07). The wire shape is
- * declared unstable upstream; everything outside this module treats these as opaque via
- * the codec functions, so upstream churn lands here only. */
+ * specs/extensions/extension-offer-and-receipt.md, fetched 2026-07-07; receipt payload fields
+ * and response placement re-read 2026-09-29 at main 5eee1e3c35). Everything outside this module
+ * treats these as opaque via the codec functions, so upstream churn lands here only. */
 
 export interface ReceiptPayload {
   version: 1;
@@ -34,15 +34,17 @@ export type SignedArtifact<P> =
 export type SignedReceipt = SignedArtifact<ReceiptPayload>;
 export type SignedOffer = SignedArtifact<OfferPayload>;
 
-/** ACP/UCP converged adjustment vocabulary (verified against both specs 2026-07-07).
- * Adopted verbatim so records round-trip card-rail order objects unchanged. */
+/** Adjustment vocabulary as the proposed compliance-fields extension takes it from UCP: `type` is
+ * an OPEN string whose typical values are listed here, and only `status` is a fixed enum — so any
+ * other `type` string is accepted. */
 export type AdjustmentType =
   | 'refund'
   | 'return'
   | 'credit'
   | 'price_adjustment'
   | 'dispute'
-  | 'cancellation';
+  | 'cancellation'
+  | (string & {});
 export type AdjustmentStatus = 'pending' | 'completed' | 'failed';
 
 export interface Adjustment {
@@ -56,15 +58,24 @@ export interface Adjustment {
   adjusts: `0x${string}`;
 }
 
-/** Tersign compliance record v1 — a SEPARATE artifact bound to the base receipt by digest.
- * The base receipt's EIP-712 schema is fixed upstream; extending it would break signatures,
- * so compliance data composes by reference. MINIMAL tier ≈ EU VAT Art 226b simplified-invoice
- * content (legally sufficient sub-€100); FULL tier adds EN 16931-aligned fields. */
+/** Compliance record v1 in the shape the `compliance-fields` extension proposes
+ * (x402-foundation/x402#2853, open — not settled spec) — a SEPARATE artifact bound to the base
+ * receipt by digest. The base receipt's EIP-712 schema is fixed upstream; extending it would
+ * break signatures, so compliance data composes by reference. The MINIMAL tier is isomorphic to
+ * the EU VAT Art 226b simplified-invoice content; whether a MINIMAL record suffices as an invoice
+ * is decided by the invoicing rules that apply to the supply (Art 219a), not by this record.
+ * FULL adds EN 16931-aligned fields. */
 export interface ComplianceRecordV1 {
   version: 1;
+  /** 1 = RFC 8785 (JCS) serialization, recordDigest = keccak256(utf8(canonical(record))).
+   * A MINIMAL member of the proposed extension; `buildMinimalRecord` sets it. Records built by
+   * tersign ≤0.5 omit it — readers accept both. */
+  canonicalizationVersion?: 1;
   /** keccak256 of the canonicalized base receipt artifact */
   receiptDigest: `0x${string}`;
-  /** sequential per issuer (Art 226(2)); assigned by the ledger when countersigned */
+  /** sequential number per issuer series (Art 226(2)), assigned by the ISSUER before the record
+   * is attested. A sequence attested only by its issuer evidences ordering only — never that no
+   * record was omitted. `buildMinimalRecord` does not set it. */
   seq?: number;
   issuedAt: number;
   issuer: {
@@ -97,7 +108,10 @@ export interface ComplianceRecordV1 {
   /** hash-chain to the record this corrects/refunds (Art 226b(e); ViDA corrective-invoice ref) */
   refundOf?: `0x${string}`;
   adjustment?: Adjustment;
-  /** retention floor in years; default 7 (HK IRO s.51C ≥ MiCA 5+2) */
+  /** retention floor in years the issuer commits to; set it to at least the longest period
+   * that applies to the issuer (Art 247(1) leaves it to each Member State — e.g. DE § 14b UStG:
+   * eight years). 7 is the default where no longer period applies (HK IRO s.51C, MiCA 5+2), not
+   * a statement that 7 suffices. */
   retentionYears: number;
 }
 

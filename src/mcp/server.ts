@@ -71,7 +71,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.5.0' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.0' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);
@@ -81,7 +81,7 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Issue signed receipt',
       description:
-        'Issue an x402 offer-receipt (EIP-712) plus a Tersign compliance record (returned as `compliance`; verify_compliance_record checks it) for a payment that has ALREADY settled, and counter-sign both into your hash chain when a ledger is configured. ' +
+        'Issue an x402 offer-receipt (EIP-712) plus a Tersign compliance record (returned as `compliance`; verify_compliance_record checks it) for a payment that has ALREADY settled; when a ledger is configured, the ledger counter-signs the receipt into your hash chain, while the compliance-fields record is not counter-signed and is bound to its receipt only by your own signature, which covers the receipt\'s digest. ' +
         'Use this for money that moved; use record_disclosure for a non-payment agent action. ' +
         'Side effects: signs with your signing key (TERSIGN_SELLER_KEY when set, else the one generated and kept locally on first run), and performs ONE network write to the ledger when TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID are set (without them it signs locally and returns an unchained artifact). ' +
         'Returns the signed receipt artifact, its keccak256 canonical digest, and — when chained — the ledger counter-signature and sequence number.',
@@ -187,10 +187,10 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Record refund',
       description:
-        'Record a refund against an already-chained receipt, as the SELLER. The refund becomes its own counter-signed entry that references the original — nothing is edited or deleted, so the chain stays append-only and both the charge and the refund remain visible. ' +
+        'Log a refund against a receipt already on your chain, as the SELLER. The ledger stores it as a PENDING refund entry that references the original receipt digest; the entry is NOT counter-signed or appended to the hash chain, and it has no digest or sequence number of its own. Nothing is edited or deleted: the original receipt and its chain position stay exactly as they were. ' +
         'Requires ledger configuration (TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID) and performs one network write; errors if the original digest is not on your chain. ' +
-        'This RECORDS a refund you have already made — it moves no money. ' +
-        'Returns the refund record, its digest, the ledger counter-signature and sequence number.',
+        'This RECORDS a refund you have already made — it moves no money. For a signed refund RECORD, build a compliance record with refundOf set to the original record digest (buildMinimalRecord in the SDK). ' +
+        'Returns { id, status: "pending" }.',
       inputSchema: {
         originalDigest: z
           .string()
@@ -270,9 +270,9 @@ export function buildServer(deps: McpDeps): McpServer {
     {
       title: 'Adjudicate dispute',
       description:
-        'Trigger deterministic adjudication of an open dispute. The v0 rulebook is public and the verdict is recomputable by anyone from the chain — no discretion, no model in the loop. ' +
-        'Side effects: writes a verdict entry, and a refund verdict automatically creates the corresponding refund record. Adjudicating twice is not meaningful; the first verdict stands. ' +
-        'Returns the verdict, the rationale naming the rule applied, and the ledger signature over both.',
+        'Trigger deterministic adjudication of an open dispute: the same inputs always produce the same verdict and rationale — no discretion, no model in the loop — and the verdict object embeds the inputs it was computed from. ' +
+        'Side effects: writes the verdict to the dispute record; a refund verdict also logs a PENDING refund entry against the receipt (not counter-signed into the chain; no money moves). Adjudicating twice is not meaningful; the first verdict stands (a second call returns 409). ' +
+        'Returns the verdict, the rationale naming the rule applied, the adjudication inputs, the verdict digest, and the ledger signature over that digest.',
       inputSchema: {
         disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute to adjudicate, as returned by open_dispute'),
       },

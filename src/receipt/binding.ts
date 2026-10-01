@@ -72,7 +72,10 @@ const SECP256K1_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0
 
 /** Why an EIP-712 `signature` is not THE canonical encoding, or undefined. Checked BEFORE
  * recovery, with the same rules as the Python twin's verify_receipt (sdk-py tersign/verify.py
- * signature_error). The canonical encoding is exactly one string per signer and message:
+ * signature_error). Each signature has exactly one accepted string, so a re-encoding of it is
+ * refused. That is a property of one signature, not of a signer and message: the signer can
+ * produce other valid signatures over the same message, so key any deduplication on (signer,
+ * message), never on the signature bytes. The accepted string is:
  *
  *   "0x" + 130 LOWER-CASE hex digits = r (32 bytes) || s (32 bytes) || v (1 byte), with
  *   1 <= r, s < n; s <= n/2 (low-s); v = 27 or 28 (0x1b / 0x1c) — what viem's

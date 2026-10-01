@@ -17,7 +17,7 @@
 
 ## Verify a Real Entry — Right Now
 
-No account. No API key. This is the genesis receipt, `seq 1` on the production chain:
+No account. No API key. This is the genesis receipt, `seq 1` on the production chain. It is a self-signed demo: Tersign signed it as seller and named its own key as payer, so its EIP-712 payload signature (domain `{name: "x402 receipt", version: "1", chainId: 1}`, per the x402 offer-and-receipt extension) recovers to the payload's own payer, `0x36f82906859E5B0bd076069f8cdfAea355358b14`. [`/v1/genesis`](https://tersign.ai/v1/genesis) serves the record with the recipe for each of its signatures.
 
 ```sh
 npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4
@@ -69,7 +69,7 @@ graph LR
 
 <sub>Diagram renders on GitHub. On npm, the paragraph above IS the diagram.</sub>
 
-Refunds chain back to the original receipt via `refundOf`. Disputes attach to the digest with objective reason codes. Party statements are structurally segregated behind an `UNVERIFIED` marker — the evidence stays prompt-injection-hardened.
+A refund record references the record it corrects by digest (`refundOf`). Disputes attach to the digest with objective reason codes. Party statements are structurally segregated behind an `UNVERIFIED` marker — the evidence stays prompt-injection-hardened.
 
 ## Enter the Record
 
@@ -77,15 +77,28 @@ Refunds chain back to the original receipt via `refundOf`. Disputes attach to th
 npm i tersign
 ```
 
-`withAssure()` wraps your x402 fetch handler so every paid call issues a signed, chained receipt. The full register:
+`withAssure()` wraps your x402 fetch handler. On a settled call it signs a receipt and a compliance-fields record with your key and merges both into the `PAYMENT-RESPONSE` header, the base64 JSON settlement response x402 wallets already read; the response body is left alone. When it cannot issue them (a settlement network that is neither CAIP-2 nor a v1 name in its table, such as `"bsc"`, or a ledger error), the paid response goes out exactly as your handler returned it, with no receipt, and the error goes to `onError` (default: `console.error`); with idempotency on, a retry with the same payment id replays that response. On a 402 it adds `compliance-fields` to the `PAYMENT-REQUIRED` header. When the `Assure` is built with a ledger, the ledger counter-signs the receipt into your chain; the compliance-fields record is not counter-signed, and is bound to its receipt only by your own signature, which covers the receipt's digest. Without a ledger, both carry your signature alone.
+
+```ts
+import { privateKeyToAccount } from 'viem/accounts';
+import { Assure, withAssure } from 'tersign';
+
+const signer = privateKeyToAccount(process.env.TERSIGN_SELLER_KEY as `0x${string}`);
+const assure = new Assure({ signer, issuer: { name: 'Example API Ltd', jurisdiction: 'HK' } });
+export default { fetch: withAssure(app.fetch, { assure }) }; // app: your x402-protected Hono app
+```
+
+A wallet finds the receipt at `extensions["offer-receipt"].info.receipt` and the record at `extensions["compliance-fields"].info.record` of the decoded `PAYMENT-RESPONSE` (`X-PAYMENT-RESPONSE` on x402 v1). Sellers whose readers still parse the JSON body can pass `legacyBodyPlacement: true` for one more minor release.
+
+The full register:
 
 | Capability | In the record |
 |---|---|
 | Receipts | Seller-signed EIP-712 (x402 offer-receipt extension), keccak256 canonical digests |
-| `withAssure()` | x402 fetch-handler adapter — a receipt per paid call |
-| Compliance exports | EU Art-226b minimal tier · EN 16931 full tier · HK IRO s.51C retention |
+| `withAssure()` | x402 fetch-handler adapter — receipt + compliance-fields record in `PAYMENT-RESPONSE` on each paid call it can issue for, the paid response passed through unchanged when it cannot; `compliance-fields` advertised on 402 |
+| Compliance-fields records | MINIMAL tier (Art 226b simplified-invoice content) via `buildMinimalRecord` · ledger exports `format=art226b` · `format=s51c` — mappings, not certifications |
 | Action records | `ActionRecordV1` — GDPR-minimized; captures the content of an Art-50 disclosure so the disclosure itself is independently attested, not self-reported |
-| Refunds | Chained to the original receipt via `refundOf` |
+| Refunds | A refund record carries `refundOf`, the digest of the record it corrects · `record_refund` logs a pending refund entry on the ledger (not counter-signed) |
 | Disputes v0 | Objective reason codes, evidence submission, adjudication |
 | Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
 | Evidence packs | `format=art50` · `format=safr` (beta) |
@@ -168,7 +181,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Bundle verifier, out-of-band | https://tersign.ai/verify/v1/ — `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`. A bundle ships its own checker; for evidence from an interested party fetch this copy and diff the two. |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
 | Conformance vectors (RFC 8785 + keccak256, two-sided) | https://github.com/tersignhq/evidence-record-conformance |
-| Sample action record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
+| Sample compliance-fields record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
 | Genesis verify | `npx tersign verify 0xe5874f1ffe87f0a6dd9eb157730f67b86ee4538b125fe30fcc4e165213dd3fc4` |
 
 ---
