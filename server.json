@@ -6,12 +6,12 @@
     "url": "https://github.com/tersignhq/tersign-js",
     "source": "github"
   },
-  "version": "0.6.0",
+  "version": "0.6.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tersign",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "transport": {
         "type": "stdio"
       },
@@ -68,7 +68,7 @@
   "websiteUrl": "https://tersign.ai",
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
-      "license": "MIT",
+      "license": "Apache-2.0",
       "categories": [
         "finance",
         "security"

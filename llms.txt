@@ -4,7 +4,7 @@
 > records, counter-signed by a neutral ledger into per-seller hash chains, verifiable by anyone
 > without an account and exportable as court-ready evidence envelopes and compliance packs.
 
-Package: `tersign` (npm, MIT, provenance-attested). Install: `npm i tersign`.
+Package: `tersign` (npm, Apache-2.0 from 0.6.1; earlier releases were MIT; provenance-attested). Install: `npm i tersign`.
 MCP server: `io.github.tersignhq/evidence` (official MCP registry); start with `npx tersign`.
 ARD catalog: https://tersign.ai/.well-known/ai-catalog.json
 

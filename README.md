@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/tersign"><img src="https://img.shields.io/npm/v/tersign?style=flat-square" alt="npm version"></a>
-  <a href="https://github.com/tersignhq/tersign-js/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/tersign?style=flat-square" alt="MIT license"></a>
+  <a href="https://github.com/tersignhq/tersign-js/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/tersign?style=flat-square" alt="Apache-2.0 license"></a>
   <img src="https://img.shields.io/badge/npm-provenance%20attested-2ea44f?style=flat-square" alt="npm provenance attested">
   <img src="https://img.shields.io/badge/MCP%20registry-io.github.tersignhq%2Fevidence-1c1c1c?style=flat-square" alt="MCP registry">
 </p>
@@ -213,7 +213,7 @@ If a maintainer ever asks you to reopen work elsewhere because of this, that is 
   <img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/seal.svg" alt="Tersign seal" width="72">
 </p>
 
-<p align="center"><sub>MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · Python verifier: <code>pip install tersign</code></sub></p>
+<p align="center"><sub>Apache-2.0 from 0.6.1; earlier releases were MIT · built and published from <a href="https://github.com/tersignhq/tersign-js">tersignhq/tersign-js</a> via trusted-publishing CI, provenance attested · Python verifier: <code>pip install tersign</code></sub></p>
 
 <p align="center"><sub><b>Venues rotate. The transcript endures.</b></sub></p>
 
