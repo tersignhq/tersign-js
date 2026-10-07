@@ -2,7 +2,7 @@
  * verifyComplianceRecord, the `tersign verify` CLI and the MCP verify tools, so those four
  * surfaces cannot drift apart on the one question a verify result is read for. verifyActionRecord,
  * verifyDispute and verifyEvidence do NOT use it: they have no signer binding and no canonical
- * signature check (PUNT-REGISTER R8).
+ * signature check.
  *
  * ECDSA recovery yields an address for ANY payload and ANY well-formed signature. An edited
  * receipt therefore still "verifies" — it recovers a different address. A recovered signer is
@@ -91,7 +91,7 @@ const SECP256K1_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0
  *
  * Scope: verifyReceipt, verifyComplianceRecord and the CLI and MCP tools built on them. The
  * action-record, dispute and evidence verifiers (evidence/action.ts, dispute/sign.ts) do NOT call
- * this and still accept what viem accepts (PUNT-REGISTER R8). Neither does the ledger's ingest
+ * this and still accept what viem accepts. Neither does the ledger's ingest
  * (SECURITY-AUDIT A8), so a receipt the ledger counter-signed with a non-canonical signature is
  * refused here. The reasons are package text only: nothing from the file is echoed. */
 export function signatureError(sig: unknown): string | undefined {

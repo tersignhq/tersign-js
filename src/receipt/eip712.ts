@@ -125,6 +125,17 @@ function signedFieldError(p: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+/** x402 offer-and-receipt §5.5 step 2: payload.version selects the EIP-712 types, and "currently
+ * only version 1 is defined". Without this a version-2 payload recovered under the version-1
+ * types and verified valid. Runs after signedFieldError, so version is already a JSON integer
+ * (a string "1" is refused there with its own reason); the comparison is strict anyway, so it
+ * does not lean on that order. The Python twin raises the same text. */
+function receiptVersionError(p: Record<string, unknown>): string | undefined {
+  const v = p.version;
+  if (v === 1 || v === 1n) return undefined;
+  return `payload.version ${String(v)} is not supported: version 1 is the only receipt version the x402 offer-and-receipt extension defines`;
+}
+
 /** valid        the signature is well-formed and recovers to an address — and, when
  *               expectedSigner is given, to exactly that address.
  *  signerBound  true only when expectedSigner was supplied and matched. When false, `signer`
@@ -154,6 +165,8 @@ export async function verifyReceipt(artifact: SignedReceipt, expectedSigner?: st
   if (!isPlainObject((artifact as { payload?: unknown }).payload)) return notReceipt;
   const badField = signedFieldError(artifact.payload as unknown as Record<string, unknown>);
   if (badField) return { valid: false, signerBound: false, reason: badField };
+  const badVersion = receiptVersionError(artifact.payload as unknown as Record<string, unknown>);
+  if (badVersion) return { valid: false, signerBound: false, reason: badVersion };
   const badSig = signatureError((artifact as { signature?: unknown }).signature);
   if (badSig) return { valid: false, signerBound: false, reason: badSig };
   let signer: `0x${string}`;

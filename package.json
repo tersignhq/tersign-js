@@ -1,6 +1,6 @@
 {
   "name": "tersign",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Tersign \u2014 the evidence layer for the agent economy. Counter-signed receipts, agent action records, idempotency enforcement, refunds, disputes, and jury-ready evidence envelopes for x402/agent-commerce sellers.",
   "license": "Apache-2.0",
   "type": "module",
