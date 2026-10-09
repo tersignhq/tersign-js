@@ -171,6 +171,7 @@ const keyfileAddress = () => privateKeyToAccount(readFileSync(keyfile(), 'utf8')
 
 let bare: Started;
 let emptyKey: Started;
+let placeholderKeys: Started;
 let ledgerConfigured: Started;
 let keyfileAfterBare = '';
 
@@ -207,6 +208,13 @@ beforeAll(async () => {
   bare = await startRegistryCommand({}, true);
   keyfileAfterBare = existsSync(keyfile()) ? keyfileAddress() : '';
   emptyKey = await startRegistryCommand({ TERSIGN_SELLER_KEY: '' }, true);
+  // What an MCP directory's install line produces when it writes every isSecret variable as
+  // `--env NAME=${NAME}` and the variable is not set where the client runs: the client passes the
+  // text through unexpanded (0.6.2 died at startup on it).
+  placeholderKeys = await startRegistryCommand(
+    { TERSIGN_SELLER_KEY: '${TERSIGN_SELLER_KEY}', TERSIGN_LEDGER_API_KEY: '${TERSIGN_LEDGER_API_KEY}' },
+    true,
+  );
   // The configuration the old caveat named: a seller id set, no key. Nothing here touches the
   // network — the unroutable URL is only ever read by a tool call, and none is made.
   ledgerConfigured = await startRegistryCommand(
@@ -244,6 +252,18 @@ describe('the registry command (npx <identifier>, no arguments) with zero config
     expect(emptyKey.serverInfo, emptyKey.stderr).toEqual({ name: pkg.name, version: pkg.version });
     expect(toolNames(emptyKey)).toEqual(toolNames(bare));
     expect(emptyKey.signer).toBe(keyfileAfterBare);
+  });
+
+  it('treats unexpanded ${TERSIGN_SELLER_KEY} and ${TERSIGN_LEDGER_API_KEY} placeholders as unset: starts, warns on stderr, signs with the stored key', () => {
+    expect(placeholderKeys.serverInfo, placeholderKeys.stderr).toEqual({ name: pkg.name, version: pkg.version });
+    expect(toolNames(placeholderKeys)).toEqual(toolNames(bare));
+    expect(placeholderKeys.signer).toBe(keyfileAfterBare);
+    const warnings = placeholderKeys.stderr.split('\n').filter((l) => l.includes('held the literal, unsubstituted text'));
+    expect(warnings, placeholderKeys.stderr).toHaveLength(2);
+    expect(warnings[0]).toContain('TERSIGN_SELLER_KEY held the literal, unsubstituted text ${TERSIGN_SELLER_KEY}');
+    expect(warnings[0]).toContain(`the key from the keyfile ${keyfile()}`);
+    expect(warnings[0]).toContain(keyfileAfterBare);
+    expect(warnings[1]).toContain('TERSIGN_LEDGER_API_KEY held the literal, unsubstituted text ${TERSIGN_LEDGER_API_KEY}');
   });
 
   it('starts without a key when a ledger seller id is configured too', () => {

@@ -41,6 +41,7 @@ obtained through a channel you trust.
 - Ledger signer: `GET https://tersign.ai/v1/ledger`
 - Traction stats: `GET https://tersign.ai/v1/stats`
 - Live x402 census: `GET https://prober.tersign.ai/v1/prober/stats`
+- Bundle verifier, out-of-band: the release an archive's VERIFY.md section 0 names; newest at https://tersign.ai/verify/latest/, every release at https://tersign.ai/verify/releases.json
 
 ## MCP server configuration
 

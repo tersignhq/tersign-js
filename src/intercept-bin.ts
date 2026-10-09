@@ -25,7 +25,7 @@ import { DEFAULT_EVENTS, McpCapture } from './intercept/capture.js';
 import { parseInterceptFlags } from './intercept/flags.js';
 import { startIntercept } from './intercept/proxy.js';
 import { EvidenceSink } from './intercept/sink.js';
-import { resolveSignerKey } from './keystore.js';
+import { ledgerApiKeyUnlessPlaceholder, resolveSignerKey } from './keystore.js';
 
 const USAGE =
   'usage: tersign intercept [--events tools/call,prompts/get] [--agent-id id] [--ledger url] -- <mcp server command> [args…]\n' +
@@ -57,11 +57,13 @@ for (const e of (flags.events ?? '').split(',')) {
 const envAgentId = process.env.TERSIGN_AGENT_ID;
 const agentId = flags.agentId ?? (envAgentId !== undefined && envAgentId !== '' ? envAgentId : 'mcp-intercept');
 const ledgerUrl = flags.ledger ?? process.env.TERSIGN_LEDGER_URL ?? 'https://tersign.ai';
-const apiKey = process.env.TERSIGN_LEDGER_API_KEY;
+// An MCP client launches this process, so an unsubstituted placeholder such as
+// `${TERSIGN_LEDGER_API_KEY}` counts as unset here, as it does for the MCP server.
+const apiKey = ledgerApiKeyUnlessPlaceholder(process.env.TERSIGN_LEDGER_API_KEY);
 const sellerId = process.env.TERSIGN_LEDGER_SELLER_ID;
 
 try {
-  const { key, source } = resolveSignerKey({ create: true });
+  const { key, source } = resolveSignerKey({ create: true, placeholderAsUnset: true });
   const account = privateKeyToAccount(key);
   console.error(`signing key: ${account.address} (${source})`);
 

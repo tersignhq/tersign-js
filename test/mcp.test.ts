@@ -129,7 +129,7 @@ describe('envDeps key resolution', () => {
   // left every directory and sandbox unable to introspect the server, and contradicted
   // record_disclosure's own published promise that the first call self-provisions.
   it('falls back to the shared keystore instead of throwing when the env var is absent', () => {
-    expect(src).toContain("resolveSignerKey({ create: true })");
+    expect(src).toContain('resolveSignerKey({ create: true, env: { TERSIGN_SELLER_KEY: sellerKey }, placeholderAsUnset: true })');
     expect(src).not.toContain("throw new Error('TERSIGN_SELLER_KEY");
   });
 });

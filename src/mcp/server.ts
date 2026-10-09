@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Assure } from '../assure.js';
 import { LedgerClient } from '../ledgerClient.js';
-import { resolveSignerKey } from '../keystore.js';
+import { ledgerApiKeyUnlessPlaceholder, resolveSignerKey } from '../keystore.js';
 import type { SignedReceipt, SignedComplianceRecord, ComplianceRecordV1 } from '../types.js';
 import {
   adjudicateDisputeTool,
@@ -29,12 +29,21 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
   // that first call self-provisions a signer-keyed account; before this the MCP entry point threw
   // instead, so `npx tersign` died on first run for anyone who had not already exported a key —
   // and no directory or sandbox could introspect the server at all.
-  // `||`, not `??`: an EMPTY TERSIGN_SELLER_KEY means unset, exactly as the keystore reads it.
-  // The listing marks the key optional, and a client that fills a blank optional secret with ""
-  // (which clients do is unmeasured) got a crash: `??` handed "" to privateKeyToAccount
-  // (fixed 2026-09-27). test/listing.test.ts starts the registry command with the key set to "".
-  const key = env.TERSIGN_SELLER_KEY || resolveSignerKey({ create: true }).key;
-  const account = privateKeyToAccount(key as `0x${string}`);
+  // Key precedence as in 0.6.2: `env`'s TERSIGN_SELLER_KEY when non-empty, else process.env's
+  // (`||`: an EMPTY value means unset — a client may fill a blank optional secret with ""; fixed
+  // 2026-09-27). The value is then read by the keystore itself, never handed raw to
+  // privateKeyToAccount, so a malformed value gets the keystore's clear error instead of a crypto
+  // library's. An MCP client launches this process, so an unsubstituted placeholder such as
+  // `${TERSIGN_SELLER_KEY}` also counts as unset (until 0.6.3 that text went straight to
+  // privateKeyToAccount and the server died at startup). test/listing.test.ts starts the registry
+  // command with the key set to "" and to the placeholder.
+  const sellerKey = env.TERSIGN_SELLER_KEY || process.env.TERSIGN_SELLER_KEY;
+  const account = privateKeyToAccount(
+    resolveSignerKey({ create: true, env: { TERSIGN_SELLER_KEY: sellerKey }, placeholderAsUnset: true }).key,
+  );
+  // The listing marks the ledger API key secret too, so the same placeholder can reach it: treat
+  // it as unset rather than send it as a credential. "" keeps its old meaning.
+  const apiKey = ledgerApiKeyUnlessPlaceholder(env.TERSIGN_LEDGER_API_KEY);
   const assure = new Assure({
     signer: account,
     issuer: {
@@ -42,13 +51,13 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
       jurisdiction: env.TERSIGN_ISSUER_JURISDICTION ?? 'unknown',
       ...(env.TERSIGN_ISSUER_TAX_ID !== undefined ? { taxId: env.TERSIGN_ISSUER_TAX_ID } : {}),
     },
-    ...(env.TERSIGN_LEDGER_URL && env.TERSIGN_LEDGER_API_KEY && env.TERSIGN_LEDGER_SELLER_ID
-      ? { ledger: { url: env.TERSIGN_LEDGER_URL, apiKey: env.TERSIGN_LEDGER_API_KEY, sellerId: env.TERSIGN_LEDGER_SELLER_ID } }
+    ...(env.TERSIGN_LEDGER_URL && apiKey && env.TERSIGN_LEDGER_SELLER_ID
+      ? { ledger: { url: env.TERSIGN_LEDGER_URL, apiKey, sellerId: env.TERSIGN_LEDGER_SELLER_ID } }
       : {}),
   });
   const ledger =
-    env.TERSIGN_LEDGER_URL && env.TERSIGN_LEDGER_API_KEY && env.TERSIGN_LEDGER_SELLER_ID
-      ? new LedgerClient({ url: env.TERSIGN_LEDGER_URL, apiKey: env.TERSIGN_LEDGER_API_KEY, sellerId: env.TERSIGN_LEDGER_SELLER_ID })
+    env.TERSIGN_LEDGER_URL && apiKey && env.TERSIGN_LEDGER_SELLER_ID
+      ? new LedgerClient({ url: env.TERSIGN_LEDGER_URL, apiKey, sellerId: env.TERSIGN_LEDGER_SELLER_ID })
       : undefined;
   return {
     assure,
@@ -58,7 +67,7 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
       ? {
           ledgerHttp: {
             url: env.TERSIGN_LEDGER_URL,
-            ...(env.TERSIGN_LEDGER_API_KEY !== undefined ? { apiKey: env.TERSIGN_LEDGER_API_KEY } : {}),
+            ...(apiKey !== undefined ? { apiKey } : {}),
           },
         }
       : {}),
@@ -71,7 +80,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.2' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.3' } as const;
 
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);

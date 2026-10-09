@@ -178,7 +178,7 @@ Full URLs, readable without auth. If you are an agent, start here.
 | Envelope API | `GET https://tersign.ai/v1/receipts/{digest}/envelope?venue={internet-court\|kleros\|uma\|generic}` |
 | Ledger stats | `GET https://tersign.ai/v1/stats` |
 | Ledger signer | `GET https://tersign.ai/v1/ledger` |
-| Bundle verifier, out-of-band | https://tersign.ai/verify/v1/ — `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`. A bundle ships its own checker; for evidence from an interested party fetch this copy and diff the two. |
+| Bundle verifier, out-of-band | Fetch the checker from the address the archive's `VERIFY.md` section 0 names: the content address of the release the archive was built with, `https://tersign.ai/verify/sha256/<sha256 of its SHA256SUMS>/` (archives whose VERIFY.md names https://tersign.ai/verify/v1/ use that). Each release serves `verify_bundle.py` · `keccak.py` · `secp256k1.py` · `SHA256SUMS`, and its files never change; https://tersign.ai/verify/releases.json lists every release. A bundle ships its own checker; for evidence from an interested party fetch that release and diff the two. |
 | llms.txt | https://raw.githubusercontent.com/tersignhq/tersign-js/main/llms.txt |
 | Conformance vectors (RFC 8785 + keccak256, two-sided) | https://github.com/tersignhq/evidence-record-conformance |
 | Sample compliance-fields record + digests | https://github.com/tersignhq/tersign-js/blob/main/test/fixtures/compliance-record.json |
