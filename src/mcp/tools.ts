@@ -8,6 +8,7 @@ import { verdictSentence } from '../verify-report.js';
 import { signDispute, signEvidence } from '../dispute/sign.js';
 import type { DisputeReason, EvidenceArtifactRef } from '../dispute/types.js';
 import type { LedgerClient } from '../ledgerClient.js';
+import { ledgerBase } from '../ledgerUrl.js';
 import type { ComplianceRecordV1, SignedComplianceRecord, SignedReceipt } from '../types.js';
 
 /** Plain-function tool implementations, kept separate from MCP wiring so they are unit-testable
@@ -25,8 +26,16 @@ export interface McpDeps {
   clock?: () => number;
 }
 
+// Each names both places a setting can come from: the Tersign plugin's settings in Claude Code, or
+// the TERSIGN_* environment variables.
+const NO_LEDGER =
+  "ledger not configured — set the ledger URL, API key and seller id in the Tersign plugin's settings in Claude Code, " +
+  'or TERSIGN_LEDGER_URL / _API_KEY / _SELLER_ID';
+const NO_LEDGER_URL = "ledger URL not configured — set it in the Tersign plugin's settings in Claude Code, or TERSIGN_LEDGER_URL";
+const NO_SIGNER = "no signing key configured — set one in the Tersign plugin's settings in Claude Code, or TERSIGN_SELLER_KEY";
+
 async function ledgerFetch(base: string, path: string, init?: { body?: unknown; apiKey?: string }) {
-  const url = `${base.replace(/\/$/, '')}${path}`;
+  const url = `${ledgerBase(base)}${path}`;
   const res = await fetch(url, {
     method: init?.body === undefined ? 'GET' : 'POST',
     headers: {
@@ -149,7 +158,7 @@ export async function verifyRecordTool(
 }
 
 export async function recordRefundTool(deps: McpDeps, originalDigest: `0x${string}`, amount: string, reason: string) {
-  if (!deps.ledger) throw new Error('ledger not configured — set TERSIGN_LEDGER_URL / _API_KEY / _SELLER_ID');
+  if (!deps.ledger) throw new Error(NO_LEDGER);
   return deps.ledger.recordRefund(originalDigest, amount, reason);
 }
 
@@ -163,8 +172,8 @@ export interface OpenDisputeArgs {
 /** Open a dispute as the PAYER. The configured key signs the dispute; the ledger rejects
  * it (403) unless the signature recovers to the disputed receipt's payer. */
 export async function openDisputeTool(deps: McpDeps, args: OpenDisputeArgs) {
-  if (!deps.signer) throw new Error('no signing key configured — set TERSIGN_SELLER_KEY (used as the acting key)');
-  if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
+  if (!deps.signer) throw new Error(`${NO_SIGNER} (used as the acting key)`);
+  if (!deps.ledgerHttp) throw new Error(NO_LEDGER_URL);
   const now = deps.clock ?? (() => Math.floor(Date.now() / 1000));
   const artifact = await signDispute(
     {
@@ -187,8 +196,8 @@ export interface SubmitEvidenceArgs {
 }
 
 export async function submitEvidenceTool(deps: McpDeps, args: SubmitEvidenceArgs) {
-  if (!deps.signer) throw new Error('no signing key configured');
-  if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
+  if (!deps.signer) throw new Error(NO_SIGNER);
+  if (!deps.ledgerHttp) throw new Error(NO_LEDGER_URL);
   const now = deps.clock ?? (() => Math.floor(Date.now() / 1000));
   const artifact = await signEvidence(
     { version: 1, disputeDigest: args.disputeDigest, role: args.role, artifacts: args.artifacts, submittedAt: now() },
@@ -203,12 +212,12 @@ export async function submitEvidenceTool(deps: McpDeps, args: SubmitEvidenceArgs
 /** Trigger deterministic adjudication (no API key — the outcome is a deterministic function of
  * the recorded inputs, so anyone may pull the trigger once the route guard allows it). */
 export async function adjudicateDisputeTool(deps: McpDeps, disputeDigest: `0x${string}`) {
-  if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
+  if (!deps.ledgerHttp) throw new Error(NO_LEDGER_URL);
   return ledgerFetch(deps.ledgerHttp.url, `/v1/disputes/${disputeDigest}/adjudicate`, { body: {} });
 }
 
 export async function getDisputeTool(deps: McpDeps, disputeDigest: `0x${string}`) {
-  if (!deps.ledgerHttp) throw new Error('ledger URL not configured — set TERSIGN_LEDGER_URL');
+  if (!deps.ledgerHttp) throw new Error(NO_LEDGER_URL);
   return ledgerFetch(deps.ledgerHttp.url, `/v1/disputes/${disputeDigest}`);
 }
 
@@ -224,7 +233,7 @@ export interface RecordDisclosureArgs {
 /** One-call counter-signed disclosure (public wedge route — no API key needed; the ledger
  * defaults to the hosted instance). The text is digested locally; only the digest travels. */
 export async function recordDisclosureTool(deps: McpDeps, args: RecordDisclosureArgs) {
-  if (!deps.signer) throw new Error('no signing key configured');
+  if (!deps.signer) throw new Error(NO_SIGNER);
   const { recordDisclosure } = await import('../evidence/disclose.js');
   return recordDisclosure({
     ...(args.text !== undefined ? { text: args.text } : {}),

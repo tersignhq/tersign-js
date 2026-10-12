@@ -5,6 +5,7 @@ import { delimiter, join } from 'node:path';
 import { privateKeyToAccount } from 'viem/accounts';
 import { resolveSignerKey } from '../src/keystore.js';
 import { envDeps } from '../src/mcp/server.js';
+import { recordDisclosureTool } from '../src/mcp/tools.js';
 
 /** Hermetic: HOME is a temp directory for every test, and `security` (the macOS keychain CLI) is
  * replaced in process by a fake whose only stored entry is `keychain.stored`; it refuses every
@@ -43,6 +44,10 @@ const PLACEHOLDERS = [
   '${TERSIGN_SELLER_KEY:-fallback}',
   '$TERSIGN_SELLER_KEY',
   '${_x9}',
+  // dotted names inside braces: a client filling the value from its own settings (0.6.4)
+  '${user_config.seller_key}',
+  '${user_config.seller_key:-}',
+  '${a.b.c}',
 ];
 
 let work = '';
@@ -125,6 +130,14 @@ describe('resolveSignerKey — env priority', () => {
       'x$TERSIGN_SELLER_KEY',
       '$TERSIGN_SELLER_KEY.bak',
       '$1KEY',
+      // dotted near-misses: a leading dot, a dot in the bare $NAME form, a prefix or suffix
+      // around a dotted placeholder, a space, and the `${env:NAME}` form, which is not covered
+      '${.seller_key}',
+      '$user_config.seller_key',
+      'x${user_config.seller_key}',
+      '${user_config.seller_key}x',
+      '${user config}',
+      '${env:TERSIGN_SELLER_KEY}',
     ]) {
       process.env.TERSIGN_SELLER_KEY = value;
       expect(() => resolveSignerKey({ create: true, placeholderAsUnset: true }), value).toThrow(CLEAR_ERROR);
@@ -213,6 +226,13 @@ describe('resolveSignerKey — with placeholderAsUnset, an unsubstituted placeho
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('${TERSIGN_SELLER_KEY:-…}');
     expect(errors[0]).not.toContain('dddd');
+    // the same for a dotted name
+    errors = [];
+    process.env.TERSIGN_SELLER_KEY = `\${user_config.seller_key:-0x${'d'.repeat(64)}}`;
+    expect(resolveSignerKey(unset)).toEqual({ key: KEYFILE_KEY, source: 'keyfile' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('${user_config.seller_key:-…}');
+    expect(errors[0]).not.toContain('dddd');
   });
 });
 
@@ -298,5 +318,71 @@ describe('envDeps — the MCP entry point resolves its key through the keystore'
     expect(deps.ledger).toBeUndefined();
     expect(deps.ledgerHttp).toEqual({ url: LEDGER_URL, apiKey: '' });
     expect(errors).toEqual([]);
+  });
+
+  it('a placeholder TERSIGN_LEDGER_URL is treated as unset: no ledger, record_disclosure goes to the default, one stderr line', async () => {
+    for (const value of ['${TERSIGN_LEDGER_URL}', '${user_config.ledger_url}']) {
+      errors = [];
+      const deps = envDeps({
+        TERSIGN_SELLER_KEY: VALID,
+        TERSIGN_LEDGER_URL: value,
+        TERSIGN_LEDGER_API_KEY: 'k',
+        TERSIGN_LEDGER_SELLER_ID: 's',
+      });
+      expect(deps.ledger, value).toBeUndefined();
+      expect(deps.ledgerHttp, value).toBeUndefined();
+      expect(errors, value).toHaveLength(1);
+      expect(errors[0]).toContain(`TERSIGN_LEDGER_URL ${WARNING} ${value} and was treated as unset; record_disclosure uses https://tersign.ai`);
+      expect(errors[0]).not.toContain('\n');
+      // Measured, not inferred: the request goes to the default ledger (fetch is stubbed; nothing leaves).
+      const urls: string[] = [];
+      vi.stubGlobal('fetch', async (url: unknown) => {
+        urls.push(String(url));
+        return Response.json({ id: 'r1' }, { status: 201 });
+      });
+      try {
+        await recordDisclosureTool(deps, { text: 'AI', agentId: 'a' });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      expect(urls).toEqual(['https://tersign.ai/v1/disclose']);
+    }
+  });
+
+  it('a placeholder TERSIGN_LEDGER_SELLER_ID is treated as unset: no ledger client, one stderr line', () => {
+    for (const value of ['${TERSIGN_LEDGER_SELLER_ID}', '${user_config.ledger_seller_id}', '$TERSIGN_LEDGER_SELLER_ID']) {
+      errors = [];
+      const deps = envDeps({
+        TERSIGN_SELLER_KEY: VALID,
+        TERSIGN_LEDGER_URL: LEDGER_URL,
+        TERSIGN_LEDGER_API_KEY: 'k',
+        TERSIGN_LEDGER_SELLER_ID: value,
+      });
+      expect(deps.ledger, value).toBeUndefined();
+      expect(deps.ledgerHttp, value).toEqual({ url: LEDGER_URL, apiKey: 'k' });
+      expect(errors, value).toHaveLength(1);
+      expect(errors[0]).toContain(`TERSIGN_LEDGER_SELLER_ID ${WARNING} ${value} and was treated as unset`);
+    }
+  });
+
+  it('"" keeps its meaning for the ledger URL and seller id: unset, nothing printed', () => {
+    expect(envDeps({ TERSIGN_SELLER_KEY: VALID, TERSIGN_LEDGER_URL: '', TERSIGN_LEDGER_API_KEY: 'k', TERSIGN_LEDGER_SELLER_ID: 's' })).not.toHaveProperty('ledgerHttp');
+    expect(envDeps({ TERSIGN_SELLER_KEY: VALID, TERSIGN_LEDGER_URL: LEDGER_URL, TERSIGN_LEDGER_API_KEY: 'k', TERSIGN_LEDGER_SELLER_ID: '' }).ledger).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
+  it("the plugin's unexpanded settings (all four, dotted) start the server on the stored key with no ledger", () => {
+    storeKeyfile(KEYFILE_KEY);
+    const deps = envDeps({
+      TERSIGN_SELLER_KEY: '${user_config.seller_key}',
+      TERSIGN_LEDGER_API_KEY: '${user_config.ledger_api_key}',
+      TERSIGN_LEDGER_SELLER_ID: '${user_config.ledger_seller_id}',
+      TERSIGN_LEDGER_URL: '${user_config.ledger_url}',
+    });
+    expect(deps.signer?.address).toBe(address(KEYFILE_KEY));
+    expect(deps.ledger).toBeUndefined();
+    expect(deps.ledgerHttp).toBeUndefined();
+    const names = placeholderWarnings().map((l) => /^tersign: (\w+) /.exec(l)?.[1]);
+    expect(names.sort()).toEqual(['TERSIGN_LEDGER_API_KEY', 'TERSIGN_LEDGER_SELLER_ID', 'TERSIGN_LEDGER_URL', 'TERSIGN_SELLER_KEY']);
   });
 });

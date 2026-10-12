@@ -53,6 +53,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { digestOf } from './canonical.js';
+import { ledgerBase } from './ledgerUrl.js';
 import { verifyReceipt } from './receipt/eip712.js';
 import { verifyComplianceRecord } from './compliance/record.js';
 import { ADDRESS_RE, findLoneSurrogate, safeText, signerStatus } from './receipt/binding.js';
@@ -146,7 +147,7 @@ async function checkLedger(digest: string, url: string): Promise<void> {
     commitment?: { seq: number; acc: string; status: string; bitcoinBlockHeight?: number | null };
   };
   try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/v1/receipts/${digest}/verify`);
+    const res = await fetch(`${ledgerBase(url)}/v1/receipts/${digest}/verify`);
     body = (await res.json()) as typeof body;
   } catch (e) {
     const cause = e instanceof Error && e.cause instanceof Error ? ` (${e.cause.message})` : '';

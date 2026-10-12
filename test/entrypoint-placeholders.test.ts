@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -18,7 +18,13 @@ import { privateKeyToAccount } from 'viem/accounts';
  * (node dist/cli.js <subcommand>), with a throwaway HOME per run, a `security` stub that exits 1
  * first on PATH (the OS keychain is never reached), and a local HTTP server that records every
  * request and answers 503. Each placeholder case has a control that reaches the server, so "no
- * request" is a measurement, not an unreachable URL. */
+ * request" is a measurement, not an unreachable URL.
+ *
+ * The same harness measures how each spawned entry point joins a ledger URL given with trailing
+ * slashes (TERSIGN_LEDGER_URL and --ledger for intercept, --ledger for disclose and verify): the
+ * in-process entry points are in ledger-url.test.ts. Where a run would otherwise reach the default
+ * ledger https://tersign.ai, fetch is replaced in the child by a stub (FETCH_STUB below) that
+ * records the URL on stderr and answers 503 itself, so nothing leaves the machine. */
 
 const SDK = fileURLToPath(new URL('..', import.meta.url));
 const VALID = `0x${'a'.repeat(64)}`;
@@ -110,12 +116,22 @@ function run(args: string[], env: Record<string, string>, home: string, request?
 
 const warnings = (r: Run) => r.stderr.split('\n').filter((l) => l.includes(WARNING));
 
+// Loaded with --import in a child that would otherwise send to the default ledger.
+const FETCH_STUB = `
+globalThis.fetch = async (url, init) => {
+  process.stderr.write('fetch-stub: ' + ((init && init.method) || 'GET') + ' ' + String(url) + '\\n');
+  return new Response('{"error":"fetch stub"}', { status: 503, headers: { 'content-type': 'application/json' } });
+};
+`;
+const stubOptions = () => ({ NODE_OPTIONS: `--import=${pathToFileURL(join(work, 'fetch-stub.mjs')).href}` });
+
 beforeAll(async () => {
   work = mkdtempSync(join(tmpdir(), 'tersign-entrypoints-'));
   mkdirSync(join(work, 'tmp'));
   mkdirSync(join(work, 'shim'));
   writeFileSync(join(work, 'shim', 'security'), '#!/bin/sh\nexit 1\n');
   chmodSync(join(work, 'shim', 'security'), 0o755);
+  writeFileSync(join(work, 'fetch-stub.mjs'), FETCH_STUB);
 
   const out = join(work, 'dist');
   const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
@@ -152,7 +168,7 @@ beforeEach(() => {
 
 describe('tersign disclose — a placeholder TERSIGN_SELLER_KEY keeps the 0.6.2 clear error', () => {
   it('exits non-zero with the clear error and sends no request, with a stored key present', async () => {
-    for (const value of ['${TERSIGN_SELLER_KEY}', '$TERSIGN_SELLER_KEY']) {
+    for (const value of ['${TERSIGN_SELLER_KEY}', '$TERSIGN_SELLER_KEY', '${user_config.seller_key}']) {
       const r = await run(['disclose', 'hello', '--ledger', ledgerUrl], { TERSIGN_SELLER_KEY: value }, freshHome(STORED));
       expect(r.code, `${value}\n${r.stderr}`).toBe(1);
       expect(r.stderr, value).toContain(CLEAR_ERROR);
@@ -210,6 +226,46 @@ describe('tersign intercept — an MCP client launches it, so a placeholder coun
     expect(w[0]).toContain(address(STORED));
   });
 
+  it('a placeholder TERSIGN_LEDGER_SELLER_ID is treated as unset: no request, the record lands locally, one warning', async () => {
+    for (const value of ['${TERSIGN_LEDGER_SELLER_ID}', '${user_config.ledger_seller_id}']) {
+      const home = freshHome();
+      const r = await run(intercept, { ...ledgerEnv('tsk_test_control'), TERSIGN_LEDGER_SELLER_ID: value }, home, TOOL_CALL);
+      expect(r.code, r.stderr).toBe(0);
+      expect(requests, value).toEqual([]);
+      expect(r.stderr).toContain('1 tool-call records (0 ledger, 1 local)');
+      const w = warnings(r);
+      expect(w, r.stderr).toHaveLength(1);
+      expect(w[0]).toContain(`TERSIGN_LEDGER_SELLER_ID ${WARNING} ${value} and was treated as unset`);
+    }
+  });
+
+  it('a placeholder TERSIGN_LEDGER_URL is treated as unset: records go to the default ledger, one warning', async () => {
+    for (const value of ['${TERSIGN_LEDGER_URL}', '${user_config.ledger_url}']) {
+      const r = await run(intercept, { ...ledgerEnv('tsk_test_control'), TERSIGN_LEDGER_URL: value, ...stubOptions() }, freshHome(), TOOL_CALL);
+      expect(r.code, r.stderr).toBe(0);
+      expect(r.stderr, value).toContain('fetch-stub: POST https://tersign.ai/v1/evidence');
+      expect(requests, value).toEqual([]);
+      const w = warnings(r);
+      expect(w, r.stderr).toHaveLength(1);
+      expect(w[0]).toContain(`TERSIGN_LEDGER_URL ${WARNING} ${value} and was treated as unset; the default ledger https://tersign.ai is used`);
+    }
+  });
+
+  it('--ledger wins over a placeholder TERSIGN_LEDGER_URL, which is then not read or warned about', async () => {
+    const env = { ...ledgerEnv('tsk_test_control'), TERSIGN_LEDGER_URL: '${TERSIGN_LEDGER_URL}' };
+    const r = await run(['intercept', '--ledger', ledgerUrl, ...intercept.slice(1)], env, freshHome(), TOOL_CALL);
+    expect(r.code, r.stderr).toBe(0);
+    expect(requests, r.stderr).toContainEqual({ method: 'POST', url: '/v1/evidence', authorization: 'Bearer tsk_test_control' });
+    expect(warnings(r)).toEqual([]);
+  });
+
+  it('a dotted placeholder TERSIGN_SELLER_KEY starts with the stored key', async () => {
+    const r = await run(intercept, { TERSIGN_SELLER_KEY: '${user_config.seller_key}' }, freshHome(STORED), TOOL_CALL);
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stderr).toContain(`signing key: ${address(STORED)} (keyfile)`);
+    expect(warnings(r), r.stderr).toHaveLength(1);
+  });
+
   it('a placeholder TERSIGN_SELLER_KEY with nothing stored starts with a generated key', async () => {
     const home = freshHome();
     const r = await run(intercept, { TERSIGN_SELLER_KEY: '$TERSIGN_SELLER_KEY' }, home, TOOL_CALL);
@@ -220,4 +276,29 @@ describe('tersign intercept — an MCP client launches it, so a placeholder coun
     expect(w, r.stderr).toHaveLength(1);
     expect(w[0]).toContain('a newly generated key');
   });
+});
+
+describe('a ledger URL given with trailing slashes reaches the same route (spawned entry points)', () => {
+  const DIGEST = `0x${'ab'.repeat(32)}`;
+  const intercept = ['intercept', '--', process.execPath, '-e', RESPONDER];
+  const env = { TERSIGN_SELLER_KEY: VALID, TERSIGN_LEDGER_API_KEY: 'k', TERSIGN_LEDGER_SELLER_ID: 's' };
+
+  for (const slashes of ['/', '//']) {
+    it(`tersign intercept, TERSIGN_LEDGER_URL and --ledger ending in ${JSON.stringify(slashes)}`, async () => {
+      await run(intercept, { ...env, TERSIGN_LEDGER_URL: ledgerUrl + slashes }, freshHome(), TOOL_CALL);
+      await run(['intercept', '--ledger', ledgerUrl + slashes, ...intercept.slice(1)], env, freshHome(), TOOL_CALL);
+      expect(requests.map((q) => `${q.method} ${q.url}`)).toEqual(['POST /v1/evidence', 'POST /v1/evidence']);
+    });
+
+    it(`tersign disclose --ledger ending in ${JSON.stringify(slashes)}`, async () => {
+      const r = await run(['disclose', 'hello', '--ledger', ledgerUrl + slashes], { TERSIGN_SELLER_KEY: VALID }, freshHome());
+      expect(requests.map((q) => `${q.method} ${q.url}`), r.stderr).toEqual(['POST /v1/disclose']);
+    });
+
+    it(`tersign verify <digest> --ledger ending in ${JSON.stringify(slashes)}`, async () => {
+      const r = await run(['verify', DIGEST, '--ledger', ledgerUrl + slashes], {}, freshHome());
+      expect(r.code, r.stderr).not.toBe(0); // the capture server answers 503: no record
+      expect(requests.map((q) => `${q.method} ${q.url}`), r.stderr).toEqual([`GET /v1/receipts/${DIGEST}/verify`]);
+    });
+  }
 });

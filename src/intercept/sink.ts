@@ -2,6 +2,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { SignedActionRecord } from '../evidence/action.js';
+import { ledgerBase } from '../ledgerUrl.js';
 
 /** Non-blocking evidence sink — records queue here and flush sequentially in the
  * background, so evidence I/O never delays the proxied traffic.
@@ -51,7 +52,7 @@ export class EvidenceSink {
   localPath: string | null = null;
 
   constructor(private readonly opts: EvidenceSinkOptions) {
-    this.ledgerUrl = opts.ledgerUrl.replace(/\/$/, '');
+    this.ledgerUrl = ledgerBase(opts.ledgerUrl);
     this.dir = opts.dir ?? join(homedir(), '.tersign');
     this.warn = opts.warn ?? ((line) => console.error(line));
   }

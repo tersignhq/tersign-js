@@ -3,7 +3,17 @@ import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { Assure } from '../src/assure.js';
 import { verifyDispute } from '../src/dispute/sign.js';
 import type { SignedDispute } from '../src/dispute/types.js';
-import { issueReceiptTool, openDisputeTool, recordRefundTool, verifyReceiptTool, verifyRecordTool } from '../src/mcp/tools.js';
+import {
+  adjudicateDisputeTool,
+  getDisputeTool,
+  issueReceiptTool,
+  openDisputeTool,
+  recordDisclosureTool,
+  recordRefundTool,
+  submitEvidenceTool,
+  verifyReceiptTool,
+  verifyRecordTool,
+} from '../src/mcp/tools.js';
 import { LedgerClient } from '../src/ledgerClient.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -131,5 +141,74 @@ describe('envDeps key resolution', () => {
   it('falls back to the shared keystore instead of throwing when the env var is absent', () => {
     expect(src).toContain('resolveSignerKey({ create: true, env: { TERSIGN_SELLER_KEY: sellerKey }, placeholderAsUnset: true })');
     expect(src).not.toContain("throw new Error('TERSIGN_SELLER_KEY");
+  });
+});
+
+async function listedTools() {
+  const server = buildServer(deps);
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverSide);
+  const client = new Client({ name: 'probe', version: '0' });
+  await client.connect(clientSide);
+  const { tools } = await client.listTools();
+  await client.close();
+  return tools;
+}
+
+describe('MCP tool annotations', () => {
+  // Pinned so that a change is deliberate. readOnlyHint: the verify tools and get_dispute only read.
+  // destructiveHint false everywhere: no tool deletes or overwrites a record. idempotentHint: a
+  // repeated adjudicate_dispute gets 409 and changes nothing; every other writer adds a new entry.
+  // openWorldHint: every tool that can reach the ledger; the verify tools are fully offline.
+  const PINNED = {
+    issue_receipt: { title: 'Issue signed receipt', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    verify_receipt: { title: 'Verify signed receipt', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    record_disclosure: { title: 'Record counter-signed disclosure', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    verify_compliance_record: { title: 'Verify compliance record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    record_refund: { title: 'Record refund', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    open_dispute: { title: 'Open dispute', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    submit_dispute_evidence: { title: 'Submit dispute evidence', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    adjudicate_dispute: { title: 'Adjudicate dispute', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    get_dispute: { title: 'Get dispute record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  };
+
+  it('every tool carries exactly the pinned annotations, and its annotation title is its title', async () => {
+    const tools = await listedTools();
+    expect(Object.fromEntries(tools.map((t) => [t.name, t.annotations]))).toEqual(PINNED);
+    for (const t of tools) expect(t.annotations?.title, t.name).toBe(t.title);
+  });
+});
+
+describe('MCP texts name both places a setting can come from', () => {
+  const ROUTE = "the Tersign plugin's settings in Claude Code";
+
+  it('every tool description that names a TERSIGN_ variable also names the plugin settings', async () => {
+    const tools = await listedTools();
+    const naming = tools.filter((t) => /TERSIGN_/.test(t.description ?? ''));
+    expect(naming.map((t) => t.name).sort()).toEqual(['issue_receipt', 'record_refund', 'submit_dispute_evidence']);
+    for (const t of naming) expect(t.description, t.name).toContain(ROUTE);
+  });
+
+  it('every missing-configuration error names the plugin settings and the variable', async () => {
+    const bare = { assure: deps.assure };
+    const d = `0x${'ab'.repeat(32)}` as const;
+    const cases: [string, Promise<unknown>, string][] = [
+      ['record_refund', recordRefundTool(bare, d, '1', 'r'), 'TERSIGN_LEDGER_URL / _API_KEY / _SELLER_ID'],
+      ['open_dispute (key)', openDisputeTool(bare, { receiptDigest: d, reason: 'not_delivered', claimAmount: '1' }), 'TERSIGN_SELLER_KEY'],
+      ['open_dispute (url)', openDisputeTool({ ...bare, signer: account }, { receiptDigest: d, reason: 'not_delivered', claimAmount: '1' }), 'TERSIGN_LEDGER_URL'],
+      ['submit_dispute_evidence (key)', submitEvidenceTool(bare, { disputeDigest: d, role: 'claimant', artifacts: [] }), 'TERSIGN_SELLER_KEY'],
+      ['submit_dispute_evidence (url)', submitEvidenceTool({ ...bare, signer: account }, { disputeDigest: d, role: 'claimant', artifacts: [] }), 'TERSIGN_LEDGER_URL'],
+      ['adjudicate_dispute', adjudicateDisputeTool(bare, d), 'TERSIGN_LEDGER_URL'],
+      ['get_dispute', getDisputeTool(bare, d), 'TERSIGN_LEDGER_URL'],
+      ['record_disclosure', recordDisclosureTool(bare, { text: 'x', agentId: 'a' }), 'TERSIGN_SELLER_KEY'],
+    ];
+    for (const [name, p, variable] of cases) {
+      const message = await p.then(
+        () => 'resolved',
+        (e: unknown) => (e instanceof Error ? e.message : String(e)),
+      );
+      expect(message, name).toContain(ROUTE);
+      expect(message, name).toContain(variable);
+    }
   });
 });

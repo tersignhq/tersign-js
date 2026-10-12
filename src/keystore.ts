@@ -28,8 +28,9 @@ const KEYCHAIN_SERVICE = 'tersign-signer';
 // server declares. When that variable is not set where the client runs, a client can pass the
 // text through unexpanded, so the server receives the placeholder itself.
 // Only a WHOLE value of one of these shapes counts: `${NAME}`, `${NAME:-default}`,
-// `${NAME-default}` or `$NAME`.
-const PLACEHOLDER_PATTERN = /^\$\{[A-Za-z_][A-Za-z0-9_]*(:?-[^}]*)?\}$|^\$[A-Za-z_][A-Za-z0-9_]*$/;
+// `${NAME-default}` or `$NAME`. Inside braces NAME may be dotted, as in `${user_config.seller_key}`
+// (a client that fills a value from its own settings); the bare `$NAME` form takes no dots.
+const PLACEHOLDER_PATTERN = /^\$\{[A-Za-z_][A-Za-z0-9_.]*(:?-[^}]*)?\}$|^\$[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** True when an environment value is an unexpanded variable reference rather than a value. */
 function isUnexpandedPlaceholder(value: string): boolean {
@@ -39,7 +40,7 @@ function isUnexpandedPlaceholder(value: string): boolean {
 /** The placeholder as it may be printed: a `:-default` / `-default` part is elided, since a
  * default can itself be a secret. */
 function shownPlaceholder(value: string): string {
-  const withDefault = /^\$\{([A-Za-z_][A-Za-z0-9_]*)(:?-)/.exec(value);
+  const withDefault = /^\$\{([A-Za-z_][A-Za-z0-9_.]*)(:?-)/.exec(value);
   return withDefault ? `\${${withDefault[1]}${withDefault[2]}…}` : value;
 }
 
@@ -125,14 +126,16 @@ export function resolveSignerKey(
   return { key: resolved.key, source: resolved.source };
 }
 
-/** TERSIGN_LEDGER_API_KEY as given, except that an unsubstituted placeholder is treated as unset,
- * with one stderr line, so it is never sent as a credential. Only for processes an MCP client
- * launches (the MCP server and `tersign intercept`); `""` and every other value pass through. */
-export function ledgerApiKeyUnlessPlaceholder(value: string | undefined): string | undefined {
+/** An environment value as given, except that an unsubstituted placeholder is treated as unset,
+ * with one stderr line naming the variable and `consequence` (what unset means for the caller).
+ * Only for processes an MCP client launches (the MCP server and `tersign intercept`), for
+ * TERSIGN_LEDGER_API_KEY (so a placeholder is never sent as a credential), TERSIGN_LEDGER_URL and
+ * TERSIGN_LEDGER_SELLER_ID; `""` and every other value pass through unchanged. */
+export function envUnlessPlaceholder(name: string, value: string | undefined, consequence: string): string | undefined {
   if (value === undefined || !isUnexpandedPlaceholder(value)) return value;
   console.error(
-    `tersign: TERSIGN_LEDGER_API_KEY held the literal, unsubstituted text ${shownPlaceholder(value)} and was ` +
-      'treated as unset; no API key is sent to the ledger.',
+    `tersign: ${name} held the literal, unsubstituted text ${shownPlaceholder(value)} and was ` +
+      `treated as unset; ${consequence}.`,
   );
   return undefined;
 }

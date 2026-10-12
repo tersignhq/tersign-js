@@ -1,8 +1,10 @@
 import type { SignedComplianceRecord, SignedReceipt } from './types.js';
 import type { EnvelopeVenue, EvidenceEnvelopeV1 } from './envelope/types.js';
 import { toInternetCourtSubmission, toKlerosEvidence, toUMAClaim, type Kleros1497Evidence } from './envelope/serialize.js';
+import { ledgerBase } from './ledgerUrl.js';
 
 export interface LedgerConfig {
+  /** ledger base URL; trailing slashes are ignored */
   url: string;
   apiKey: string;
   sellerId: string;
@@ -27,8 +29,12 @@ export class LedgerClient {
     return this.cfg.fetchImpl ?? fetch;
   }
 
+  private get base() {
+    return ledgerBase(this.cfg.url);
+  }
+
   async submitReceipt(artifact: SignedReceipt, compliance?: SignedComplianceRecord): Promise<CountersignResult> {
-    const res = await this.f(`${this.cfg.url}/v1/receipts`, {
+    const res = await this.f(`${this.base}/v1/receipts`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -43,7 +49,7 @@ export class LedgerClient {
   /** Log a refund against a receipt on this seller's chain. The ledger stores a PENDING refund
    * entry; it is not counter-signed or chained, so the answer carries no digest or seq. */
   async recordRefund(originalDigest: `0x${string}`, amount: string, reason: string): Promise<{ id: string; status: string }> {
-    const res = await this.f(`${this.cfg.url}/v1/refunds`, {
+    const res = await this.f(`${this.base}/v1/refunds`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -60,7 +66,7 @@ export class LedgerClient {
    * party claim (≤500 chars) folded into the envelope, never raw evidence. */
   async fetchEnvelope(digest: `0x${string}`, statement?: string): Promise<EvidenceEnvelopeV1> {
     const q = statement !== undefined ? `?statement=${encodeURIComponent(statement)}` : '';
-    const res = await this.f(`${this.cfg.url}/v1/receipts/${digest}/envelope${q}`);
+    const res = await this.f(`${this.base}/v1/receipts/${digest}/envelope${q}`);
     if (!res.ok) throw new Error(`envelope fetch failed: ${res.status} ${await res.text()}`);
     return (await res.json()) as EvidenceEnvelopeV1;
   }

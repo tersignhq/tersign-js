@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Assure } from '../assure.js';
 import { LedgerClient } from '../ledgerClient.js';
-import { ledgerApiKeyUnlessPlaceholder, resolveSignerKey } from '../keystore.js';
+import { envUnlessPlaceholder, resolveSignerKey } from '../keystore.js';
 import type { SignedReceipt, SignedComplianceRecord, ComplianceRecordV1 } from '../types.js';
 import {
   adjudicateDisputeTool,
@@ -41,9 +41,20 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
   const account = privateKeyToAccount(
     resolveSignerKey({ create: true, env: { TERSIGN_SELLER_KEY: sellerKey }, placeholderAsUnset: true }).key,
   );
-  // The listing marks the ledger API key secret too, so the same placeholder can reach it: treat
-  // it as unset rather than send it as a credential. "" keeps its old meaning.
-  const apiKey = ledgerApiKeyUnlessPlaceholder(env.TERSIGN_LEDGER_API_KEY);
+  // A client can pass the same kind of placeholder for the ledger settings: the API key is treated
+  // as unset rather than sent as a credential, and the URL and seller id as unset rather than used
+  // as a URL or an id. "" keeps its old meaning for all three.
+  const apiKey = envUnlessPlaceholder('TERSIGN_LEDGER_API_KEY', env.TERSIGN_LEDGER_API_KEY, 'no API key is sent to the ledger');
+  const ledgerUrl = envUnlessPlaceholder(
+    'TERSIGN_LEDGER_URL',
+    env.TERSIGN_LEDGER_URL,
+    'record_disclosure uses https://tersign.ai, and issue_receipt, record_refund and the dispute tools have no ledger',
+  );
+  const sellerId = envUnlessPlaceholder(
+    'TERSIGN_LEDGER_SELLER_ID',
+    env.TERSIGN_LEDGER_SELLER_ID,
+    'issue_receipt returns unchained receipts and record_refund has no ledger',
+  );
   const assure = new Assure({
     signer: account,
     issuer: {
@@ -51,22 +62,17 @@ export function envDeps(env: Record<string, string | undefined> = process.env): 
       jurisdiction: env.TERSIGN_ISSUER_JURISDICTION ?? 'unknown',
       ...(env.TERSIGN_ISSUER_TAX_ID !== undefined ? { taxId: env.TERSIGN_ISSUER_TAX_ID } : {}),
     },
-    ...(env.TERSIGN_LEDGER_URL && apiKey && env.TERSIGN_LEDGER_SELLER_ID
-      ? { ledger: { url: env.TERSIGN_LEDGER_URL, apiKey, sellerId: env.TERSIGN_LEDGER_SELLER_ID } }
-      : {}),
+    ...(ledgerUrl && apiKey && sellerId ? { ledger: { url: ledgerUrl, apiKey, sellerId } } : {}),
   });
-  const ledger =
-    env.TERSIGN_LEDGER_URL && apiKey && env.TERSIGN_LEDGER_SELLER_ID
-      ? new LedgerClient({ url: env.TERSIGN_LEDGER_URL, apiKey, sellerId: env.TERSIGN_LEDGER_SELLER_ID })
-      : undefined;
+  const ledger = ledgerUrl && apiKey && sellerId ? new LedgerClient({ url: ledgerUrl, apiKey, sellerId }) : undefined;
   return {
     assure,
     signer: account,
     ...(ledger ? { ledger } : {}),
-    ...(env.TERSIGN_LEDGER_URL
+    ...(ledgerUrl
       ? {
           ledgerHttp: {
-            url: env.TERSIGN_LEDGER_URL,
+            url: ledgerUrl,
             ...(apiKey !== undefined ? { apiKey } : {}),
           },
         }
@@ -80,8 +86,17 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.3' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.4' } as const;
 
+/** Tool annotations are MCP hints to the client, not enforcement. The two verify tools and
+ * get_dispute only read. Every other tool adds to the ledger (issue_receipt without a ledger only
+ * signs locally) and none deletes a record. adjudicate_dispute is the one destructive tool: it
+ * moves an open dispute to its final state, after which the dispute takes no more evidence.
+ * adjudicate_dispute is idempotent: its first successful call moves the dispute out of "open"
+ * (adjudicated or escalated) and every later call gets 409. open_dispute is not: once the first
+ * dispute is adjudicated, the same call opens another.
+ * openWorldHint is true for every tool that can reach the ledger; the two verify tools never do.
+ * test/mcp.test.ts pins every value. */
 export function buildServer(deps: McpDeps): McpServer {
   const server = new McpServer(MCP_SERVER_IDENTITY);
 
@@ -89,10 +104,11 @@ export function buildServer(deps: McpDeps): McpServer {
     'issue_receipt',
     {
       title: 'Issue signed receipt',
+      annotations: { title: 'Issue signed receipt', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'Issue an x402 offer-receipt (EIP-712) plus a Tersign compliance record (returned as `compliance`; verify_compliance_record checks it) for a payment that has ALREADY settled; when a ledger is configured, the ledger counter-signs the receipt into your hash chain, while the compliance-fields record is not counter-signed and is bound to its receipt only by your own signature, which covers the receipt\'s digest. ' +
         'Use this for money that moved; use record_disclosure for a non-payment agent action. ' +
-        'Side effects: signs with your signing key (TERSIGN_SELLER_KEY when set, else the one generated and kept locally on first run), and performs ONE network write to the ledger when TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID are set (without them it signs locally and returns an unchained artifact). ' +
+        'Side effects: signs with your signing key (the one set in the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables, else the one generated and kept locally on first run), and performs ONE network write to the ledger when a ledger URL, API key and seller id are set there too (without them it signs locally and returns an unchained artifact). ' +
         'Returns the signed receipt artifact, its keccak256 canonical digest, and — when chained — the ledger counter-signature and sequence number.',
       inputSchema: {
         network: z.string().describe('settlement network as CAIP-2, e.g. "eip155:8453" for Base mainnet'),
@@ -119,6 +135,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'verify_receipt',
     {
       title: 'Verify signed receipt',
+      annotations: { title: 'Verify signed receipt', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description:
         'Verify an x402 offer-receipt artifact, fully OFFLINE (no network, no API key, no account; checks no ledger or chain): recover the address whose key produced its EIP-712 signature over the six signed payload fields (version, network, resourceUrl, payer, issuedAt, transaction), and compute its canonical digest (the content address a ledger records it under). ' +
         'Recovery yields SOME address for any payload, so without expectedSigner the signer is UNAUTHENTICATED: valid:true then proves neither who signed nor that the receipt is unmodified — an edited receipt recovers a different address and still returns valid:true. ' +
@@ -142,6 +159,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'record_disclosure',
     {
       title: 'Record counter-signed disclosure',
+      annotations: { title: 'Record counter-signed disclosure', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. No API key needed — the first call self-provisions a free signer-keyed account, except when your key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing).',
       inputSchema: {
@@ -163,6 +181,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'verify_compliance_record',
     {
       title: 'Verify compliance record',
+      annotations: { title: 'Verify compliance record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description:
         'Verify ONE record type: the compliance record that issue_receipt returns beside a receipt (`compliance`: a ComplianceRecordV1 `record` plus its ComplianceAttestation `attestation`, EIP-712 domain "compliance-fields"), fully OFFLINE (no network, no API key, no account): recompute the record\'s canonical digest, check that the attestation\'s signed payload names that exact digest and the same receiptDigest as the record, and recover the address that signed the attestation. ' +
         'It does NOT verify the disclosure record record_disclosure returns: that is a different record type (an action record, EIP-712 domain "tersign action-record"), and passed here it fails with a digest mismatch that says nothing about tampering. Use verify_receipt for the payment receipt itself. ' +
@@ -195,9 +214,10 @@ export function buildServer(deps: McpDeps): McpServer {
     'record_refund',
     {
       title: 'Record refund',
+      annotations: { title: 'Record refund', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'Log a refund against a receipt already on your chain, as the SELLER. The ledger stores it as a PENDING refund entry that references the original receipt digest; the entry is NOT counter-signed or appended to the hash chain, and it has no digest or sequence number of its own. Nothing is edited or deleted: the original receipt and its chain position stay exactly as they were. ' +
-        'Requires ledger configuration (TERSIGN_LEDGER_URL/_API_KEY/_SELLER_ID) and performs one network write; errors if the original digest is not on your chain. ' +
+        'Requires a ledger URL, API key and seller id (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables) and performs one network write; errors if the original digest is not on your chain. ' +
         'This RECORDS a refund you have already made — it moves no money. For a signed refund RECORD, build a compliance record with refundOf set to the original record digest (buildMinimalRecord in the SDK). ' +
         'Returns { id, status: "pending" }.',
       inputSchema: {
@@ -221,6 +241,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'open_dispute',
     {
       title: 'Open dispute',
+      annotations: { title: 'Open dispute', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'Open an objective dispute against a counter-signed receipt as the PAYER (the configured key must be the receipt payer). Reasons: not_delivered, wrong_content, duplicate_charge. Contested non-mechanical claims escalate to the arbiter; duplicate_charge is decided instantly from ledger arithmetic.',
       inputSchema: {
@@ -242,13 +263,14 @@ export function buildServer(deps: McpDeps): McpServer {
     'submit_dispute_evidence',
     {
       title: 'Submit dispute evidence',
+      annotations: { title: 'Submit dispute evidence', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
-        'Submit signed evidence to an open dispute. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (TERSIGN_LEDGER_API_KEY).',
+        'Submit signed evidence to an open dispute. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables).',
       inputSchema: {
         disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute, as returned by open_dispute'),
         role: z
           .enum(['claimant', 'respondent'])
-          .describe("which side you are filing as: 'claimant' = the payer who opened it (payer key) · 'respondent' = the seller answering it (also needs TERSIGN_LEDGER_API_KEY)"),
+          .describe("which side you are filing as: 'claimant' = the payer who opened it (payer key) · 'respondent' = the seller answering it (also needs the seller API key)"),
         artifacts: z
           .array(
             z.object({
@@ -278,6 +300,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'adjudicate_dispute',
     {
       title: 'Adjudicate dispute',
+      annotations: { title: 'Adjudicate dispute', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
       description:
         'Trigger deterministic adjudication of an open dispute: the same inputs always produce the same verdict and rationale — no discretion, no model in the loop — and the verdict object embeds the inputs it was computed from. ' +
         'Side effects: writes the verdict to the dispute record; a refund verdict also logs a PENDING refund entry against the receipt (not counter-signed into the chain; no money moves). Adjudicating twice is not meaningful; the first verdict stands (a second call returns 409). ' +
@@ -293,6 +316,7 @@ export function buildServer(deps: McpDeps): McpServer {
     'get_dispute',
     {
       title: 'Get dispute record',
+      annotations: { title: 'Get dispute record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       description:
         'Fetch a dispute in full: its state, both sides\' evidence references, the verdict and rationale once adjudicated, and the ledger signature over the record. ' +
         'Read-only — one network read, no key required, and safe to poll while a dispute is open.',

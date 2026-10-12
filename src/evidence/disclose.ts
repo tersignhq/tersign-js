@@ -1,5 +1,6 @@
 import type { Account } from 'viem/accounts';
 import { digestOf } from '../canonical.js';
+import { ledgerBase } from '../ledgerUrl.js';
 import { signActionRecord, type ActionRecordV1, type DisclosureKind, type SignedActionRecord } from './action.js';
 
 /** One-call counter-signed disclosure — the wedge flow.
@@ -64,7 +65,7 @@ export async function recordDisclosure(opts: RecordDisclosureOptions): Promise<R
   };
   const signed = await signActionRecord(record, opts.account);
 
-  const base = (opts.ledger ?? 'https://tersign.ai').replace(/\/$/, '');
+  const base = ledgerBase(opts.ledger ?? 'https://tersign.ai');
   const f = opts.fetchImpl ?? fetch;
   const res = await f(`${base}/v1/disclose`, {
     method: 'POST',
