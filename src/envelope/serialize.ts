@@ -69,7 +69,8 @@ export function toKlerosEvidence(env: EvidenceEnvelopeV1): Kleros1497Evidence {
     description:
       `Neutral-ledger evidence for ${env.kind} ${env.subject.digest} in seller '${env.subject.sellerId}' ` +
       `hash-chain. Counter-signed at transaction time by ${env.chain.ledgerSigner}; link digest ` +
-      `${env.chain.linkDigest}. Verify without trusting any party at the fileURI.` +
+      `${env.chain.linkDigest}. The fileURI returns the record's chain position and counter-signature with the ledger's own ` +
+      `check of them; the link digest can be recomputed and the counter-signature recovered from those values.` +
       (env.unverifiedPartyStatement !== undefined
         ? ` A party-supplied claim accompanies this evidence in the unverifiedPartyStatement field (not ledger-attested).`
         : ''),

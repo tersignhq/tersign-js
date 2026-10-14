@@ -86,7 +86,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.4' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.5' } as const;
 
 /** Tool annotations are MCP hints to the client, not enforcement. The two verify tools and
  * get_dispute only read. Every other tool adds to the ledger (issue_receipt without a ledger only

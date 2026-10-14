@@ -71,7 +71,7 @@ export class LedgerClient {
     return (await res.json()) as EvidenceEnvelopeV1;
   }
 
-  /** Fetch + serialize in one call: a jury-ready submission for the named venue. */
+  /** Fetch + serialize in one call: a submission formatted for the named venue. */
   async fetchVenueSubmission(
     digest: `0x${string}`,
     venue: Exclude<EnvelopeVenue, 'generic'>,

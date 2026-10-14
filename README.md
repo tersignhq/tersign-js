@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://tersign.ai"><img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/banner.svg" alt="Tersign — the evidence layer for the agent economy" width="760"></a>
+  <a href="https://tersign.ai"><img src="https://raw.githubusercontent.com/tersignhq/.github/main/assets/banner.svg" alt="Tersign — the record layer for the machine age" width="760"></a>
 </p>
 
 <p align="center">
@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/MCP%20registry-io.github.tersignhq%2Fevidence-1c1c1c?style=flat-square" alt="MCP registry">
 </p>
 
-**Tersign is the evidence layer for the agent economy** — a neutral, counter-signed, hash-chained ledger for agent commerce. Sellers sign EIP-712 receipts; Tersign chains them per seller and counter-signs every entry. When the dispute comes, the transcript is already sealed.
+**Tersign is the record layer for the machine age**: what AI agents do and pay, counter-signed by a party outside the deal, anchored where no one can move it, checkable by anyone. *Machines can generate anything but the past.* Sellers sign EIP-712 receipts; Tersign chains them per seller and counter-signs every entry. When the dispute comes, the transcript is already sealed.
 
 > **Venues rotate. The transcript endures.**
 
@@ -64,7 +64,7 @@ graph LR
     B --> C["canonical digest<br/>keccak256"]
     C --> D["per-seller hash chain<br/>seq n binds seq n−1"]
     D --> E["neutral counter-signature<br/>secp256k1 ledger"]
-    E --> F["verifiable by anyone<br/>venue-ready envelope"]
+    E --> F["verifiable by anyone<br/>venue-formatted envelope"]
 ```
 
 <sub>Diagram renders on GitHub. On npm, the paragraph above IS the diagram.</sub>

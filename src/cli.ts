@@ -49,7 +49,7 @@ if (sub === undefined || sub === 'mcp') {
   await import('./intercept-bin.js');
 } else if (sub === 'help' || sub === '--help' || sub === '-h') {
   console.log(
-    'tersign — evidence layer for the agent economy\n\n' +
+    'tersign — the record layer for the machine age\n\n' +
       '  tersign                 start the MCP server (stdio)\n' +
       '  tersign mcp             same, explicit\n' +
       '  tersign verify <receipt.json | 0xdigest> [--signer 0xaddr] [--ledger url]\n' +

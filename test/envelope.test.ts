@@ -29,6 +29,10 @@ const FIXTURE: EvidenceEnvelopeV1 = {
 /** Cross-impl drift tripwire: digest of the exact internet-court submission string for the
  * fixture above. MUST equal the vector pinned in the ledger's suite — edit both or neither. */
 const IC_SUBMISSION_VECTOR = '0xc4533802ea82a18d3ee66e86b9f694aeddeb61b209ca33cfeb3ccdb00532ccd0'; // re-pinned 2026-08-27: howToVerify prose fix (wrong linkDigest recipe → byte-concat)
+/** MUST equal the vector pinned in ledger/test/envelope.test.ts: the Kleros ERC-1497 evidence JSON for FIXTURE. Pinned 2026-10-14
+ * with the description fix (it said "Verify without trusting any party at the fileURI"; the fileURI is the ledger's own
+ * check). Change the serializer, re-pin here and there in the same commit. */
+const KLEROS_EVIDENCE_VECTOR = '0xc1b8d41c5459a0ef1e4e90c369023eef52a502e4e42829a9697c7b37d276025a';
 
 describe('evidence envelope serializers', () => {
   it('internet-court submission fits the slot, round-trips, and pins the cross-impl vector', () => {
@@ -43,6 +47,8 @@ describe('evidence envelope serializers', () => {
 
   it('kleros ERC-1497 evidence carries fileURI=verifyUrl and fileHash=subject digest', () => {
     const k = toKlerosEvidence(FIXTURE);
+    expect(digestOf(k)).toBe(KLEROS_EVIDENCE_VECTOR);
+    expect(k.description).not.toMatch(/without trusting/i);
     expect(k.fileURI).toBe(FIXTURE.verifyUrl);
     expect(k.fileHash).toBe(FIXTURE.subject.digest);
     expect(k.fileTypeExtension).toBe('json');
