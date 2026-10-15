@@ -97,7 +97,7 @@ The full register:
 | Receipts | Seller-signed EIP-712 (x402 offer-receipt extension), keccak256 canonical digests |
 | `withAssure()` | x402 fetch-handler adapter — receipt + compliance-fields record in `PAYMENT-RESPONSE` on each paid call it can issue for, the paid response passed through unchanged when it cannot; `compliance-fields` advertised on 402 |
 | Compliance-fields records | MINIMAL tier (Art 226b simplified-invoice content) via `buildMinimalRecord` · ledger exports `format=art226b` · `format=s51c` — mappings, not certifications |
-| Action records | `ActionRecordV1` — GDPR-minimized; captures the content of an Art-50 disclosure so the disclosure itself is independently attested, not self-reported |
+| Action records | `ActionRecordV1` — GDPR-minimized; states that an Art-50 disclosure was presented, with a digest of its text and never the text, signed by the deployer and counter-signed when it reaches the ledger; what it says is still the deployer's own report |
 | Refunds | A refund record carries `refundOf`, the digest of the record it corrects · `record_refund` logs a pending refund entry on the ledger (not counter-signed) |
 | Disputes v0 | Objective reason codes, evidence submission, adjudication |
 | Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
@@ -107,18 +107,20 @@ The full register:
 
 ## Capture at the MCP Boundary — `tersign intercept`
 
-An agent's tool calls are usually recorded, if at all, by the party running the agent. Put a
-recording clamp on the wire instead:
+An agent's tool calls are usually recorded, if at all, inside the agent's own code. Record them
+at the wire instead:
 
 ```sh
 npx tersign intercept -- npx your-mcp-server
 ```
 
 The proxy is a **pure observer**: bytes reach the server and the client exactly as sent, in
-order, unmodified. Every `tools/call` it sees becomes an `ActionRecordV1` signed by *your* key
-and counter-signed into a hash chain — **digests only**, so the record proves what happened
-without carrying arguments or results anywhere. Records go to a configured ledger, and fall
-back to a local `~/.tersign/intercepts-<date>.jsonl` so evidence is never silently dropped.
+order, unmodified. It runs on your side with your key, so each record is still your own report.
+Every `tools/call` that gets a response becomes an `ActionRecordV1` signed by *your* key and, when a ledger is
+configured, counter-signed into a hash chain; a call cancelled or never answered leaves no record. **Digests only**: each record carries a digest of
+the call's arguments and one of its result or error (canonical JSON), never the content. Records
+go to a configured ledger, and fall back to a local `~/.tersign/intercepts-<date>.jsonl`, where
+they carry your signature only, so evidence is never silently dropped.
 
 Experimental, and deliberately unopinionated about where the protocol lands: it implements the
 observation semantics of the audit-mode validator described in MCP **SEP-2624** (Draft) as a

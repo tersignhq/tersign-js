@@ -6,10 +6,11 @@ import type { VerifyLike } from '../compliance/types.js';
 
 /** Agent ACTION records — the governance-evidence dialect (governance-evidence design note).
  *
- * A payment receipt proves an agent PAID; an action record proves what an agent DID:
- * a disclosure was presented (EU AI Act Art 50(1)/(2)), a governance checkpoint ran
- * (MAS SAFR audit-log shape: proposed action → rules applied → outcome), a tool call
- * happened. Records carry DIGESTS of content, never content — the ledger stays a
+ * A payment receipt records that an agent PAID; an action record is the deployer's signed
+ * statement of what an agent did: a disclosure was presented (EU AI Act Art 50(1)/(2)), a
+ * governance checkpoint ran (MAS SAFR audit-log shape: proposed action → rules applied →
+ * outcome), a tool call was made. The counter-signature shows it reached the ledger, not that
+ * the action happened. Records carry DIGESTS of content, never content — the ledger stays a
  * data-minimized evidence chain (GDPR data-minimization posture), and the seller keeps
  * the underlying artifacts under their own retention.
  *
