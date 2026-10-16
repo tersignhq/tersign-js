@@ -6,12 +6,16 @@ export type { VerifyLike } from '../compliance/types.js';
  * receipts + idempotency natively; disputes are explicitly out of scope upstream).
  *
  * Design constraints (do not relax):
- * - OBJECTIVE disputes only in v1: reasons limited to machine-decidable or
- *   default-judgment-decidable claims; anything contested and non-mechanical ESCALATES.
- * - SIGNED-EVIDENCE-ONLY: the adjudicator reads signed artifacts + ledger records; free-text
- *   from either party is never an input channel (prompt-injection neutralization).
- * - Pre-committed outcomes: verdict ∈ {refund, uphold}; the arbiter can never invent
- *   a third destination for value.
+ * - OBJECTIVE disputes only in v1: reasons limited to claims fixed rules can classify (from
+ *   ledger records, or from the seller's silence through the evidence window); anything
+ *   contested and non-mechanical is marked ESCALATED, for an external venue the parties choose.
+ * - SIGNED-EVIDENCE-ONLY: the triage rules read ledger records and whether each side filed
+ *   signed evidence; free text from either party is never an input channel (prompt-injection
+ *   neutralization).
+ * - Pre-committed outcomes: a triage result is refund or uphold, or the dispute escalates; no
+ *   rule can direct value anywhere but refund or uphold, and no outcome moves money.
+ * A triage result is data, not an adjudication: it decides no legal claim and binds no one
+ * unless the parties separately agree.
  * Everything is content-addressed (keccak digests of canonical JSON) and signed via
  * digest-bound EIP-712 attestations, so payload schemas can evolve without breaking
  * signatures — same pattern as compliance records. */
@@ -19,7 +23,12 @@ export type { VerifyLike } from '../compliance/types.js';
 /** v1 objective reason codes. `quality`-style subjective claims are deliberately absent. */
 export type DisputeReason = 'not_delivered' | 'wrong_content' | 'duplicate_charge';
 
+/** The `verdict` wire field: a triage classification, not an adjudication, award or judgment.
+ * The type name follows the wire field and stays. */
 export type DisputeVerdict = 'refund' | 'uphold';
+/** `adjudicated` is the wire name for a dispute the triage rules classified (refund or uphold);
+ * `escalated` means a rule (R1-escalate or R3-escalate) found the claim not classifiable, and the
+ * dispute is for an external venue the parties choose. */
 export type DisputeStatus = 'open' | 'adjudicated' | 'escalated' | 'closed';
 
 export interface DisputePayloadV1 {
@@ -31,15 +40,16 @@ export interface DisputePayloadV1 {
   claimAmount: string;
   /** digest of the seller's pre-committed acceptance criteria, when the offer carried one */
   criteriaDigest?: `0x${string}`;
-  /** free text for HUMANS reviewing the record — never an adjudication input */
+  /** free text for HUMANS reviewing the record — never an input to the triage rules */
   statement?: string;
   /** unix seconds */
   openedAt: number;
 }
 
 /** Machine-checkable acceptance criteria a seller pre-commits at offer time. The
- * pre-commitment is the contract surface: the arbiter selects between outcomes by
- * evaluating THESE, not by judging quality after the fact. */
+ * pre-commitment is the contract surface: the parties, or an external venue they choose, can
+ * hold the delivery to THESE instead of assessing quality after the fact. The v0 triage rules
+ * do not read them. */
 export interface CriterionV1 {
   id: string;
   kind: 'content-digest' | 'delivered-by' | 'no-duplicate-charge';

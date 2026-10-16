@@ -209,8 +209,10 @@ export async function submitEvidenceTool(deps: McpDeps, args: SubmitEvidenceArgs
   });
 }
 
-/** Trigger deterministic adjudication (no API key — the outcome is a deterministic function of
- * the recorded inputs, so anyone may pull the trigger once the route guard allows it). */
+/** Run deterministic dispute triage and record its result (no API key — the result is a
+ * deterministic function of the recorded inputs, so anyone may trigger it once the route guard
+ * allows it). The result is a triage classification, not an adjudication; it decides no legal
+ * claim and moves no money. The function name follows the wire route and stays. */
 export async function adjudicateDisputeTool(deps: McpDeps, disputeDigest: `0x${string}`) {
   if (!deps.ledgerHttp) throw new Error(NO_LEDGER_URL);
   return ledgerFetch(deps.ledgerHttp.url, `/v1/disputes/${disputeDigest}/adjudicate`, { body: {} });

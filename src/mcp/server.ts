@@ -86,15 +86,16 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.6' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.7' } as const;
 
 /** Tool annotations are MCP hints to the client, not enforcement. The two verify tools and
  * get_dispute only read. Every other tool adds to the ledger (issue_receipt without a ledger only
- * signs locally) and none deletes a record. adjudicate_dispute is the one destructive tool: it
- * moves an open dispute to its final state, after which the dispute takes no more evidence.
- * adjudicate_dispute is idempotent: its first successful call moves the dispute out of "open"
- * (adjudicated or escalated) and every later call gets 409. open_dispute is not: once the first
- * dispute is adjudicated, the same call opens another.
+ * signs locally) and none deletes a record. adjudicate_dispute (it runs triage; the name is the
+ * wire name and stays) is the one destructive tool: it moves an open dispute to its final state,
+ * after which the dispute takes no more evidence. It is idempotent: its first successful call
+ * moves the dispute out of "open" (status "adjudicated" or "escalated") and every later call gets
+ * 409. open_dispute is not: once triage has classified the first dispute (status "adjudicated"),
+ * the same call opens another.
  * openWorldHint is true for every tool that can reach the ledger; the two verify tools never do.
  * test/mcp.test.ts pins every value. */
 export function buildServer(deps: McpDeps): McpServer {
@@ -108,6 +109,7 @@ export function buildServer(deps: McpDeps): McpServer {
       description:
         'Issue an x402 offer-receipt (EIP-712) plus a Tersign compliance record (returned as `compliance`; verify_compliance_record checks it) for a payment that has ALREADY settled; when a ledger is configured, the ledger counter-signs the receipt into your hash chain, while the compliance-fields record is not counter-signed and is bound to its receipt only by your own signature, which covers the receipt\'s digest. ' +
         'Use this for money that moved; use record_disclosure for a non-payment agent action. ' +
+        'Recording only: it moves no money and executes no payment. ' +
         'Side effects: signs with your signing key (the one set in the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables, else the one generated and kept locally on first run), and performs ONE network write to the ledger when a ledger URL, API key and seller id are set there too (without them it signs locally and returns an unchained artifact). ' +
         'Returns the signed receipt artifact, its keccak256 canonical digest, and — when chained — the ledger counter-signature and sequence number.',
       inputSchema: {
@@ -161,7 +163,7 @@ export function buildServer(deps: McpDeps): McpServer {
       title: 'Record counter-signed disclosure',
       annotations: { title: 'Record counter-signed disclosure', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
-        'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. No API key needed — the first call self-provisions a free signer-keyed account, except when your key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing).',
+        'One-call disclosure evidence (EU AI Act Art 50 dialect): digests the disclosure text LOCALLY, signs an action record with your key, and the public ledger counter-signs it into your per-signer hash chain. It moves no money. No API key needed — the first call self-provisions a free signer-keyed account, except when your key is already registered to an API-key account (409) or the daily provisioning caps are reached (429; https://tersign.ai/pricing).',
       inputSchema: {
         text: z.string().optional().describe('the disclosure text as presented — digested locally, never transmitted'),
         textDigest: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional().describe('pre-computed digest (wins over text)'),
@@ -218,7 +220,7 @@ export function buildServer(deps: McpDeps): McpServer {
       description:
         'Log a refund against a receipt already on your chain, as the SELLER. The ledger stores it as a PENDING refund entry that references the original receipt digest; the entry is NOT counter-signed or appended to the hash chain, and it has no digest or sequence number of its own. Nothing is edited or deleted: the original receipt and its chain position stay exactly as they were. ' +
         'Requires a ledger URL, API key and seller id (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables) and performs one network write; errors if the original digest is not on your chain. ' +
-        'This RECORDS a refund you have already made — it moves no money. For a signed refund RECORD, build a compliance record with refundOf set to the original record digest (buildMinimalRecord in the SDK). ' +
+        'This RECORDS a refund you have already made: it moves no money and executes no payment or refund. For a signed refund RECORD, build a compliance record with refundOf set to the original record digest (buildMinimalRecord in the SDK). ' +
         'Returns { id, status: "pending" }.',
       inputSchema: {
         originalDigest: z
@@ -243,16 +245,18 @@ export function buildServer(deps: McpDeps): McpServer {
       title: 'Open dispute',
       annotations: { title: 'Open dispute', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
-        'Open an objective dispute against a counter-signed receipt as the PAYER (the configured key must be the receipt payer). Reasons: not_delivered, wrong_content, duplicate_charge. Contested non-mechanical claims escalate to the arbiter; duplicate_charge is decided instantly from ledger arithmetic.',
+        'Open an objective dispute against a counter-signed receipt as the PAYER (the configured key must be the receipt payer). Reasons: not_delivered, wrong_content, duplicate_charge. ' +
+        'Recording only: the ledger records your signed claim and opens an evidence window; it moves no money. ' +
+        'adjudicate_dispute later runs deterministic triage on it, which classifies a duplicate_charge from the ledger\'s own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalates it otherwise; classifies an unanswered claim from the seller\'s silence; and marks anything else escalated, for an external venue the parties choose.',
       inputSchema: {
         receiptDigest: digestSchema.describe('0x-prefixed keccak256 digest of the counter-signed receipt being disputed'),
         reason: z
           .enum(['not_delivered', 'wrong_content', 'duplicate_charge'])
-          .describe("grounds: 'not_delivered' nothing arrived · 'wrong_content' delivered but not what was bought · 'duplicate_charge' the same supply was billed twice (decided mechanically from the chain, no arbiter)"),
+          .describe("grounds: 'not_delivered' nothing arrived · 'wrong_content' delivered but not what was bought · 'duplicate_charge' the same supply was billed twice (classified by triage from the ledger's own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalated otherwise; no party evidence is read)"),
         claimAmount: z
           .string()
-          .describe('amount claimed back, as a decimal STRING in the receipt\'s settlement currency, e.g. "12.50"; must not exceed the receipt amount'),
-        statement: z.string().optional().describe('for humans reading the record — never an adjudication input'),
+          .describe('amount claimed back, as a decimal STRING in the receipt\'s settlement currency, e.g. "12.50". The ledger records it as stated and checks it against no payment; a refund triage result logs this amount as a pending refund entry'),
+        statement: z.string().optional().describe('for humans reading the record — never an input to the triage rules'),
       },
     },
     async ({ receiptDigest, reason, claimAmount, statement }) =>
@@ -265,7 +269,8 @@ export function buildServer(deps: McpDeps): McpServer {
       title: 'Submit dispute evidence',
       annotations: { title: 'Submit dispute evidence', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
-        'Submit signed evidence to an open dispute. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables).',
+        'Submit signed evidence to an open dispute before its evidence deadline. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables). ' +
+        'Each artifact is sent as its digest and kind, plus its time and note when given; its content never leaves your side. Triage (adjudicate_dispute) uses only whether each side filed, never the content, kind or note of what was filed; the evidence stays on the record for the parties and any external venue. It moves no money.',
       inputSchema: {
         disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute, as returned by open_dispute'),
         role: z
@@ -276,14 +281,14 @@ export function buildServer(deps: McpDeps): McpServer {
             z.object({
               kind: z
                 .enum(['content-digest', 'delivery-attestation', 'payment-proof', 'transcript'])
-                .describe('what this artifact is; the adjudicator treats each kind differently'),
+                .describe('what this artifact is; recorded for the parties and any external venue — the triage rules do not read it'),
               digest: digestSchema.describe('0x-prefixed keccak256 digest of the artifact. Only the DIGEST is submitted — the content itself never leaves your side'),
               at: z.number().int().optional().describe('unix seconds the artifact was produced; supply it when timing is part of your argument'),
-              note: z.string().optional().describe('short human-readable label for whoever reads the record; never an adjudication input'),
+              note: z.string().optional().describe('short human-readable label for whoever reads the record; never an input to the triage rules'),
             }),
           )
           .min(1)
-          .describe('at least one evidence reference; submit every artifact you want considered in a single call'),
+          .describe('at least one evidence reference; submit every artifact you want on the record in a single call'),
       },
     },
     async ({ disputeDigest, role, artifacts }) =>
@@ -299,14 +304,21 @@ export function buildServer(deps: McpDeps): McpServer {
   server.registerTool(
     'adjudicate_dispute',
     {
-      title: 'Adjudicate dispute',
-      annotations: { title: 'Adjudicate dispute', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      title: 'Run dispute triage',
+      annotations: { title: 'Run dispute triage', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
       description:
-        'Trigger deterministic adjudication of an open dispute: the same inputs always produce the same verdict and rationale — no discretion, no model in the loop — and the verdict object embeds the inputs it was computed from. ' +
-        'Side effects: writes the verdict to the dispute record; a refund verdict also logs a PENDING refund entry against the receipt (not counter-signed into the chain; no money moves). Adjudicating twice is not meaningful; the first verdict stands (a second call returns 409). ' +
-        'Returns the verdict, the rationale naming the rule applied, the adjudication inputs, the verdict digest, and the ledger signature over that digest.',
+        'Run deterministic triage on an open dispute and record the result. Triage applies fixed rules, stated here, to the dispute record: ' +
+        'R1 (duplicate_charge) looks up the receipts the ledger counter-signed for the same seller, payer and settlement transaction hash, reading the hash only in 0x-prefixed 64-hex-digit form and the payer only in 0x-prefixed 40-hex-digit form (either letter case), and classifies the disputed receipt refund when an earlier one shares that hash and uphold otherwise; ' +
+        'R2 (not_delivered, wrong_content) classifies the claim refund when the seller filed no evidence before the evidence deadline; ' +
+        'anything else, including a duplicate_charge receipt without a settlement transaction hash or a payer in those forms, is marked escalated with no result, for an external venue the parties choose. ' +
+        'The rules never read the content, kind or note of any evidence, or the claimant\'s statement; no discretion and no model are involved, and the same inputs always produce the same result and rationale. ' +
+        'The result is a triage classification recorded as data: it is not an adjudication, award or legal conclusion, it decides no legal claim, and it binds no one unless the parties separately agree. ' +
+        'Side effects: writes the result to the dispute record, signed by the ledger; a refund result also logs a PENDING refund entry against the receipt for the claimed amount (not counter-signed into the chain; no payment is checked and no money moves). ' +
+        'Runs once: the first successful call closes the dispute to evidence, and every later call returns 409. ' +
+        'This tool sends no API key, so a not_delivered or wrong_content dispute can be triaged only after its evidence deadline (before it the ledger answers 409 or 401); a duplicate_charge dispute can be triaged at any time. ' +
+        'Returns { id, status: "adjudicated" (the wire name for a dispute a rule classified) | "escalated", verdict: "refund" | "uphold" | null (the triage result), rationale (names the rule applied), adjudicationInputs (the exact inputs the rules ran on), verdictDigest, ledgerSignature, ledgerSigner, decidedAt }.',
       inputSchema: {
-        disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute to adjudicate, as returned by open_dispute'),
+        disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute to triage, as returned by open_dispute'),
       },
     },
     async ({ disputeDigest }) => json(await adjudicateDisputeTool(deps, disputeDigest as `0x${string}`)),
@@ -318,7 +330,7 @@ export function buildServer(deps: McpDeps): McpServer {
       title: 'Get dispute record',
       annotations: { title: 'Get dispute record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       description:
-        'Fetch a dispute in full: its state, both sides\' evidence references, the verdict and rationale once adjudicated, and the ledger signature over the record. ' +
+        'Fetch a dispute in full: its status, claim and evidence deadline, both sides\' signed evidence references, and, once triage has run, the triage result (verdict: refund, uphold, or null when escalated), its rationale, the inputs the rules ran on, and the ledger signature over the result. ' +
         'Read-only — one network read, no key required, and safe to poll while a dispute is open.',
       inputSchema: {
         disputeDigest: digestSchema.describe('0x-prefixed digest of the dispute to fetch, as returned by open_dispute'),

@@ -18,7 +18,11 @@ import { LedgerClient } from '../src/ledgerClient.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { buildServer, envDeps, MCP_SERVER_IDENTITY } from '../src/mcp/server.js';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const account = privateKeyToAccount(generatePrivateKey());
@@ -157,7 +161,8 @@ async function listedTools() {
 
 describe('MCP tool annotations', () => {
   // Pinned so that a change is deliberate. readOnlyHint: the verify tools and get_dispute only read.
-  // destructiveHint false everywhere: no tool deletes or overwrites a record. idempotentHint: a
+  // destructiveHint true only for adjudicate_dispute, which closes the dispute to evidence; no tool
+  // deletes a record. idempotentHint: a
   // repeated adjudicate_dispute gets 409 and changes nothing; every other writer adds a new entry.
   // openWorldHint: every tool that can reach the ledger; the verify tools are fully offline.
   const PINNED = {
@@ -168,7 +173,7 @@ describe('MCP tool annotations', () => {
     record_refund: { title: 'Record refund', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     open_dispute: { title: 'Open dispute', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     submit_dispute_evidence: { title: 'Submit dispute evidence', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    adjudicate_dispute: { title: 'Adjudicate dispute', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    adjudicate_dispute: { title: 'Run dispute triage', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     get_dispute: { title: 'Get dispute record', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   };
 
@@ -209,6 +214,185 @@ describe('MCP texts name both places a setting can come from', () => {
       );
       expect(message, name).toContain(ROUTE);
       expect(message, name).toContain(variable);
+    }
+  });
+});
+
+// Triage is not adjudication (Terms section 12: a Triage Result is data, not an adjudication,
+// award or judgment). The tool keeps its wire name, adjudicate_dispute, because clients call it by
+// that name; every text a client or a directory reviewer reads says what the ledger route does:
+// fixed rules (R1 duplicate charge from the ledger's own receipts, R2 the seller's silence through
+// the evidence window), anything else escalated, a recorded result that moves no money. The texts
+// are pinned whole so a change to them is deliberate; the word scan covers every tool, its title
+// and every input description, so a new tool or a new parameter cannot bring the words back.
+describe('MCP texts describe dispute triage as triage, and no tool as moving money', () => {
+  type Listed = Awaited<ReturnType<typeof listedTools>>[number];
+
+  function inputDescriptions(node: unknown): string[] {
+    if (Array.isArray(node)) return node.flatMap(inputDescriptions);
+    if (node === null || typeof node !== 'object') return [];
+    return Object.entries(node as Record<string, unknown>).flatMap(([k, v]) =>
+      k === 'description' && typeof v === 'string' ? [v] : inputDescriptions(v),
+    );
+  }
+
+  const texts = (t: Listed): string[] => [t.title ?? '', t.annotations?.title ?? '', t.description ?? '', ...inputDescriptions(t.inputSchema)];
+
+  // What may contain the word: the wire identifiers that cannot change (the tool name, the
+  // response field that carries the rule inputs, the status value, each only in the form the texts
+  // quote it) and the one disclaimer the texts must make. Everything else is scanned.
+  const ALLOWED = [/\badjudicate_dispute\b/g, /\badjudicationInputs\b/g, /"adjudicated"/g, /\bnot an adjudication\b/g];
+  const prose = (s: string) => ALLOWED.reduce((acc, re) => acc.replace(re, ''), s);
+
+  // `verdict` is a wire field (the dispute response's triage result; the verify tools' one-line
+  // summary). It may appear only where a tool quotes that field, each form once per text and only
+  // in the tool that returns it; prose that calls a triage result a verdict fails.
+  const VERDICT_WIRE: Record<string, string[]> = {
+    verify_receipt: ['{ verdict, valid', 'Read verdict first'],
+    verify_compliance_record: ['{ verdict, valid', 'Read verdict first'],
+    adjudicate_dispute: ['verdict: "refund" | "uphold" | null', 'verdictDigest'],
+    get_dispute: ['verdict: refund, uphold, or null when escalated'],
+  };
+  const withoutVerdictWire = (tool: string, s: string) => (VERDICT_WIRE[tool] ?? []).reduce((acc, form) => acc.replace(form, ''), s);
+  // The one disclaimer that may name an award.
+  const AWARD_DISCLAIMER = 'not an adjudication, award or legal conclusion';
+
+  it('no tool text calls our triage an adjudication, an arbiter, a judgment or a ruling', async () => {
+    const tools = await listedTools();
+    expect(tools.length).toBe(9);
+    let scanned = 0;
+    for (const t of tools) {
+      for (const s of texts(t)) {
+        scanned++;
+        expect(prose(s), `${t.name}: ${s}`).not.toMatch(/adjudicat/i);
+        expect(prose(s), `${t.name}: ${s}`).not.toMatch(/\barbit(?:er|ers|rat\w*)\b|\bjudg\w*|\brulings?\b/i);
+        expect(s.replace(AWARD_DISCLAIMER, ''), `${t.name}: ${s}`).not.toMatch(/\barbitra\w*|\baward\w*|\btribunal\w*/i);
+        expect(withoutVerdictWire(t.name, s), `${t.name}: ${s}`).not.toMatch(/\bverdicts?\b/i);
+      }
+    }
+    // Not an empty net: titles, descriptions and the input descriptions of all nine tools.
+    expect(scanned).toBeGreaterThan(40);
+  });
+
+  // The JSDoc ships in the package's .d.ts, which editors show as hover text. Built fresh from src
+  // (sdk/dist may be stale or absent; CI tests before it builds), every .d.ts is read whole, with the
+  // comment markers stripped so a phrase broken across JSDoc lines reads as one sentence, then the
+  // wire names (the same ALLOWED forms, plus the status type's 'adjudicated', a backticked
+  // `adjudicated` and the function adjudicateDisputeTool, which follows the wire route) are removed.
+  it('no declaration or JSDoc in the shipped .d.ts calls triage an adjudication', () => {
+    const out = mkdtempSync(join(tmpdir(), 'tersign-dts-'));
+    try {
+      const sdk = fileURLToPath(new URL('..', import.meta.url));
+      const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+      execFileSync(process.execPath, [tsc, '-p', join(sdk, 'tsconfig.build.json'), '--outDir', out, '--emitDeclarationOnly'], {
+        cwd: sdk,
+        stdio: 'pipe',
+        timeout: 180_000,
+      });
+      const files = (readdirSync(out, { recursive: true }) as string[]).filter((f) => f.endsWith('.d.ts'));
+      expect(files.length).toBeGreaterThan(20);
+      const DTS_ALLOWED = [...ALLOWED, /'adjudicated'/g, /`adjudicated`/g, /\badjudicateDisputeTool\b/g];
+      let reached = 0;
+      for (const f of files) {
+        const flat = readFileSync(join(out, f), 'utf8')
+          .replace(/\n\s*(?:\*(?!\/)|\/\/)\s?/g, ' ')
+          .replace(/\s+/g, ' ');
+        if (/adjudicateDisputeTool|'adjudicated'/.test(flat)) reached++;
+        expect(DTS_ALLOWED.reduce((acc, re) => acc.replace(re, ''), flat), f).not.toMatch(/adjudicat/i);
+      }
+      // Not an empty net: the dispute types and the MCP tool declarations were both read.
+      expect(reached).toBeGreaterThanOrEqual(2);
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  }, 200_000);
+
+  it('adjudicate_dispute and the dispute tools carry exactly the pinned texts', async () => {
+    const byName = new Map((await listedTools()).map((t) => [t.name, t]));
+    const adjudicate = byName.get('adjudicate_dispute');
+    expect(adjudicate?.title).toBe('Run dispute triage');
+    expect(adjudicate?.description).toBe(
+      'Run deterministic triage on an open dispute and record the result. Triage applies fixed rules, stated here, to the dispute record: ' +
+        'R1 (duplicate_charge) looks up the receipts the ledger counter-signed for the same seller, payer and settlement transaction hash, reading the hash only in 0x-prefixed 64-hex-digit form and the payer only in 0x-prefixed 40-hex-digit form (either letter case), and classifies the disputed receipt refund when an earlier one shares that hash and uphold otherwise; ' +
+        'R2 (not_delivered, wrong_content) classifies the claim refund when the seller filed no evidence before the evidence deadline; ' +
+        'anything else, including a duplicate_charge receipt without a settlement transaction hash or a payer in those forms, is marked escalated with no result, for an external venue the parties choose. ' +
+        "The rules never read the content, kind or note of any evidence, or the claimant's statement; no discretion and no model are involved, and the same inputs always produce the same result and rationale. " +
+        'The result is a triage classification recorded as data: it is not an adjudication, award or legal conclusion, it decides no legal claim, and it binds no one unless the parties separately agree. ' +
+        'Side effects: writes the result to the dispute record, signed by the ledger; a refund result also logs a PENDING refund entry against the receipt for the claimed amount (not counter-signed into the chain; no payment is checked and no money moves). ' +
+        'Runs once: the first successful call closes the dispute to evidence, and every later call returns 409. ' +
+        'This tool sends no API key, so a not_delivered or wrong_content dispute can be triaged only after its evidence deadline (before it the ledger answers 409 or 401); a duplicate_charge dispute can be triaged at any time. ' +
+        'Returns { id, status: "adjudicated" (the wire name for a dispute a rule classified) | "escalated", verdict: "refund" | "uphold" | null (the triage result), rationale (names the rule applied), adjudicationInputs (the exact inputs the rules ran on), verdictDigest, ledgerSignature, ledgerSigner, decidedAt }.',
+    );
+    expect(inputDescriptions(adjudicate?.inputSchema)).toEqual(['0x-prefixed digest of the open dispute to triage, as returned by open_dispute']);
+
+    expect(byName.get('open_dispute')?.description).toBe(
+      'Open an objective dispute against a counter-signed receipt as the PAYER (the configured key must be the receipt payer). Reasons: not_delivered, wrong_content, duplicate_charge. ' +
+        'Recording only: the ledger records your signed claim and opens an evidence window; it moves no money. ' +
+        "adjudicate_dispute later runs deterministic triage on it, which classifies a duplicate_charge from the ledger's own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalates it otherwise; classifies an unanswered claim from the seller's silence; and marks anything else escalated, for an external venue the parties choose.",
+    );
+    expect(inputDescriptions(byName.get('open_dispute')?.inputSchema)).toEqual([
+      '0x-prefixed keccak256 digest of the counter-signed receipt being disputed',
+      "grounds: 'not_delivered' nothing arrived · 'wrong_content' delivered but not what was bought · 'duplicate_charge' the same supply was billed twice (classified by triage from the ledger's own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalated otherwise; no party evidence is read)",
+      'amount claimed back, as a decimal STRING in the receipt\'s settlement currency, e.g. "12.50". The ledger records it as stated and checks it against no payment; a refund triage result logs this amount as a pending refund entry',
+      'for humans reading the record — never an input to the triage rules',
+    ]);
+
+    expect(byName.get('submit_dispute_evidence')?.description).toBe(
+      "Submit signed evidence to an open dispute before its evidence deadline. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (the Tersign plugin's settings in Claude Code, or the TERSIGN_* environment variables). " +
+        'Each artifact is sent as its digest and kind, plus its time and note when given; its content never leaves your side. Triage (adjudicate_dispute) uses only whether each side filed, never the content, kind or note of what was filed; the evidence stays on the record for the parties and any external venue. It moves no money.',
+    );
+    expect(inputDescriptions(byName.get('submit_dispute_evidence')?.inputSchema)).toEqual(
+      expect.arrayContaining([
+        'what this artifact is; recorded for the parties and any external venue — the triage rules do not read it',
+        'short human-readable label for whoever reads the record; never an input to the triage rules',
+        'at least one evidence reference; submit every artifact you want on the record in a single call',
+      ]),
+    );
+
+    expect(byName.get('get_dispute')?.description).toBe(
+      "Fetch a dispute in full: its status, claim and evidence deadline, both sides' signed evidence references, and, once triage has run, the triage result (verdict: refund, uphold, or null when escalated), its rationale, the inputs the rules ran on, and the ledger signature over the result. " +
+        'Read-only — one network read, no key required, and safe to poll while a dispute is open.',
+    );
+  });
+
+  it('every tool that touches money says it records and moves none', async () => {
+    const byName = new Map((await listedTools()).map((t) => [t.name, t.description ?? '']));
+    expect(byName.get('issue_receipt')).toContain('Recording only: it moves no money and executes no payment.');
+    expect(byName.get('record_refund')).toContain('This RECORDS a refund you have already made: it moves no money and executes no payment or refund.');
+    expect(byName.get('open_dispute')).toContain('Recording only: the ledger records your signed claim and opens an evidence window; it moves no money.');
+    expect(byName.get('adjudicate_dispute')).toContain('no payment is checked and no money moves');
+    expect(byName.get('submit_dispute_evidence')).toContain('It moves no money.');
+    expect(byName.get('record_disclosure')).toContain('It moves no money.');
+  });
+
+  it('the README and llms.txt (both ship in the package and the mirror) say the same', () => {
+    for (const file of ['../README.md', '../llms.txt']) {
+      const text = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
+      expect(text.length, file).toBeGreaterThan(1000);
+      expect(prose(text), file).not.toMatch(/adjudicat/i);
+      // Court words in every inflection. The one exemption is the exact tool-text disclaimer
+      // (AWARD_DISCLAIMER), removed once if a file quotes it; neither file does today, so the
+      // replace is a no-op and every occurrence of these words fails.
+      expect(text.replace(AWARD_DISCLAIMER, ''), file).not.toMatch(/\barbit(?:ers?|ra\w*)\b|\brulings?\b|\bjudg\w*|\baward\w*|\btribunal\w*/i);
+      expect(text.replace(/\s+/g, ' '), file).toContain('the result is data, not an adjudication, and decides no legal claim');
+      expect(text.replace(/\s+/g, ' '), file).toContain('No tool moves money');
+    }
+  });
+
+  it('adjudicate_dispute sends no API key, as its description says, even when one is configured', async () => {
+    let captured: { url: string; init: RequestInit } | undefined;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      captured = { url, init };
+      return new Response(JSON.stringify({ id: '0x', status: 'escalated', verdict: null }), { status: 200 });
+    });
+    try {
+      const d = `0x${'cd'.repeat(32)}` as const;
+      await adjudicateDisputeTool({ ...deps, ledgerHttp: { url: 'https://ledger.example.com', apiKey: 'seller-key' } }, d);
+      expect(captured?.url).toBe(`https://ledger.example.com/v1/disputes/${d}/adjudicate`);
+      expect(captured?.init.method).toBe('POST');
+      expect(captured?.init.headers).not.toHaveProperty('authorization');
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

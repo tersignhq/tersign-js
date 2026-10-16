@@ -57,6 +57,10 @@ respondent dispute evidence signed by any other key),
 `TERSIGN_ISSUER_NAME`, `TERSIGN_ISSUER_JURISDICTION`, `TERSIGN_ISSUER_TAX_ID`.
 Tools: issue_receipt, verify_receipt, verify_compliance_record, record_disclosure, record_refund,
 open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
+No tool moves money: issue_receipt and record_refund record payments and refunds that already
+happened. adjudicate_dispute runs deterministic triage and records its result: fixed rules, stated
+in its tool description, classify a duplicate charge or an unanswered claim; the result is data,
+not an adjudication, and decides no legal claim.
 
 ## x402 seller middleware
 

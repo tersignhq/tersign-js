@@ -180,8 +180,9 @@ export async function verifyEvidence(signed: SignedEvidence, expectedSigner?: st
   }
 }
 
-/** Sign acceptance criteria as the SELLER, pre-committing the machine-checkable bar the
- * arbiter will hold the delivery to. Attach the returned digest to offers/records. */
+/** Sign acceptance criteria as the SELLER, pre-committing the machine-checkable bar the parties,
+ * or an external venue they choose, can hold the delivery to (the v0 triage rules do not read
+ * it). Attach the returned digest to offers/records. */
 export async function signCriteria(criteria: AcceptanceCriteriaV1, account: Account): Promise<SignedCriteria> {
   if (!account.signTypedData) throw new Error('account cannot sign typed data');
   const payload: CriteriaAttestationPayload = {
