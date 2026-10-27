@@ -60,7 +60,8 @@ open_dispute, submit_dispute_evidence, adjudicate_dispute, get_dispute.
 No tool moves money: issue_receipt and record_refund record payments and refunds that already
 happened. adjudicate_dispute runs deterministic triage and records its result: fixed rules, stated
 in its tool description, classify a duplicate charge or an unanswered claim; the result is data,
-not an adjudication, and decides no legal claim.
+not an adjudication, and decides no legal claim. The duplicate-charge rule, R1, reads receipts
+from one seller to one payer that share one settlement transaction as one payment.
 
 ## x402 seller middleware
 

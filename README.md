@@ -99,7 +99,7 @@ The full register:
 | Compliance-fields records | MINIMAL tier (Art 226b simplified-invoice content) via `buildMinimalRecord` · ledger exports `format=art226b` · `format=s51c` — mappings, not certifications |
 | Action records | `ActionRecordV1` — GDPR-minimized; states that an Art-50 disclosure was presented, with a digest of its text and never the text, signed by the deployer and counter-signed when it reaches the ledger; what it says is still the deployer's own report |
 | Refunds | A refund record carries `refundOf`, the digest of the record it corrects · `record_refund` logs a pending refund entry on the ledger (not counter-signed); it moves no money |
-| Disputes v0 | Objective reason codes, signed evidence submission, deterministic triage: fixed rules classify a duplicate charge or an unanswered claim and record the result as data, not an adjudication; anything else is marked escalated, for an external venue the parties choose |
+| Disputes v0 | Objective reason codes, signed evidence submission, deterministic triage: fixed rules classify a duplicate charge (R1 reads receipts from one seller to one payer that share one settlement transaction as one payment) or an unanswered claim and record the result as data, not an adjudication; anything else is marked escalated, for an external venue the parties choose |
 | Venue envelopes | Internet Court (5,000-char slot) · Kleros ERC-1497 · UMA · generic |
 | Evidence packs | `format=art50` · `format=safr` (beta) |
 | Idempotency | In-memory + Cloudflare D1 stores |
@@ -146,7 +146,7 @@ No configuration is needed. With `TERSIGN_SELLER_KEY` unset or empty, the server
 
 **Tools** — `issue_receipt` · `verify_receipt` · `verify_compliance_record` · `record_disclosure` · `record_refund` · `open_dispute` · `submit_dispute_evidence` · `adjudicate_dispute` · `get_dispute`
 
-No tool moves money: `issue_receipt` and `record_refund` record payments and refunds that already happened. `adjudicate_dispute` runs deterministic triage and records its result: fixed rules, stated in the tool's description, classify a duplicate charge or an unanswered claim; the result is data, not an adjudication, and decides no legal claim.
+No tool moves money: `issue_receipt` and `record_refund` record payments and refunds that already happened. `adjudicate_dispute` runs deterministic triage and records its result: fixed rules, stated in the tool's description, classify a duplicate charge or an unanswered claim; the result is data, not an adjudication, and decides no legal claim. The duplicate-charge rule, R1, reads receipts from one seller to one payer that share one settlement transaction as one payment.
 
 | Env var | Required | Purpose |
 |---|---|---|

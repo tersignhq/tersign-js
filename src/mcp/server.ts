@@ -86,7 +86,7 @@ function json(value: unknown) {
 
 /** MUST match package.json name/version — the MCP handshake self-reports this identity to
  * every client; mcp.test.ts pins it against package.json so a release bump can't drift it. */
-export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.7' } as const;
+export const MCP_SERVER_IDENTITY = { name: 'tersign', version: '0.6.8' } as const;
 
 /** Tool annotations are MCP hints to the client, not enforcement. The two verify tools and
  * get_dispute only read. Every other tool adds to the ledger (issue_receipt without a ledger only
@@ -247,12 +247,14 @@ export function buildServer(deps: McpDeps): McpServer {
       description:
         'Open an objective dispute against a counter-signed receipt as the PAYER (the configured key must be the receipt payer). Reasons: not_delivered, wrong_content, duplicate_charge. ' +
         'Recording only: the ledger records your signed claim and opens an evidence window; it moves no money. ' +
-        'adjudicate_dispute later runs deterministic triage on it, which classifies a duplicate_charge from the ledger\'s own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalates it otherwise; classifies an unanswered claim from the seller\'s silence; and marks anything else escalated, for an external venue the parties choose.',
+        'The ledger opens a dispute only with room reserved in its dispute capacity for the claim, its triage and each party\'s first evidence item, the same on every plan; while that capacity is full it opens none (HTTP 503). ' +
+        'adjudicate_dispute later runs deterministic triage on it, which classifies a duplicate_charge from the ledger\'s own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalates it otherwise; classifies an unanswered claim from the seller\'s silence; and marks anything else escalated, for an external venue the parties choose. ' +
+        'Triage\'s duplicate_charge rule, R1, reads receipts from one seller to one payer that share one settlement transaction as one payment.',
       inputSchema: {
         receiptDigest: digestSchema.describe('0x-prefixed keccak256 digest of the counter-signed receipt being disputed'),
         reason: z
           .enum(['not_delivered', 'wrong_content', 'duplicate_charge'])
-          .describe("grounds: 'not_delivered' nothing arrived · 'wrong_content' delivered but not what was bought · 'duplicate_charge' the same supply was billed twice (classified by triage from the ledger's own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalated otherwise; no party evidence is read)"),
+          .describe("grounds: 'not_delivered' nothing arrived · 'wrong_content' delivered but not what was bought · 'duplicate_charge' the same supply was billed twice (classified by triage from the ledger's own receipts only when the disputed receipt carries a settlement transaction hash in 0x-prefixed 64-hex-digit form (either letter case), and escalated otherwise; no party evidence is read; R1, the rule that classifies it, reads receipts from one seller to one payer that share one settlement transaction as one payment)"),
         claimAmount: z
           .string()
           .describe('amount claimed back, as a decimal STRING in the receipt\'s settlement currency, e.g. "12.50". The ledger records it as stated and checks it against no payment; a refund triage result logs this amount as a pending refund entry'),
@@ -270,7 +272,8 @@ export function buildServer(deps: McpDeps): McpServer {
       annotations: { title: 'Submit dispute evidence', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'Submit signed evidence to an open dispute before its evidence deadline. Claimant evidence must be signed by the payer key; respondent evidence additionally requires the seller API key (the Tersign plugin\'s settings in Claude Code, or the TERSIGN_* environment variables). ' +
-        'Each artifact is sent as its digest and kind, plus its time and note when given; its content never leaves your side. Triage (adjudicate_dispute) uses only whether each side filed, never the content, kind or note of what was filed; the evidence stays on the record for the parties and any external venue. It moves no money.',
+        'Each artifact is sent as its digest and kind, plus its time and note when given; its content never leaves your side. Triage (adjudicate_dispute) uses only whether each side filed, never the content, kind or note of what was filed; the evidence stays on the record for the parties and any external venue. It moves no money. ' +
+        'Each party\'s first item on a dispute always fits the room reserved for it when the dispute opened; a later item is refused (HTTP 503) while the ledger\'s dispute capacity is full.',
       inputSchema: {
         disputeDigest: digestSchema.describe('0x-prefixed digest of the open dispute, as returned by open_dispute'),
         role: z
@@ -308,9 +311,10 @@ export function buildServer(deps: McpDeps): McpServer {
       annotations: { title: 'Run dispute triage', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
       description:
         'Run deterministic triage on an open dispute and record the result. Triage applies fixed rules, stated here, to the dispute record: ' +
-        'R1 (duplicate_charge) looks up the receipts the ledger counter-signed for the same seller, payer and settlement transaction hash, reading the hash only in 0x-prefixed 64-hex-digit form and the payer only in 0x-prefixed 40-hex-digit form (either letter case), and classifies the disputed receipt refund when an earlier one shares that hash and uphold otherwise; ' +
+        'R1 (duplicate_charge) looks up the receipts the ledger counter-signed for the same seller, payer and settlement transaction hash, reading the hash only in 0x-prefixed 64-hex-digit form and the payer only in 0x-prefixed 40-hex-digit form (either letter case), and lists at most 16 of those receipts, the earliest ones and the disputed one (on a settlement of more than 16 the rationale says "more than 16 receipts" and which are listed, and adjudicationInputs carries sameSettlementTruncated: true), and classifies the disputed receipt refund when an earlier one shares that hash and uphold otherwise; ' +
         'R2 (not_delivered, wrong_content) classifies the claim refund when the seller filed no evidence before the evidence deadline; ' +
         'anything else, including a duplicate_charge receipt without a settlement transaction hash or a payer in those forms, is marked escalated with no result, for an external venue the parties choose. ' +
+        'R1 reads receipts from one seller to one payer that share one settlement transaction as one payment. ' +
         'The rules never read the content, kind or note of any evidence, or the claimant\'s statement; no discretion and no model are involved, and the same inputs always produce the same result and rationale. ' +
         'The result is a triage classification recorded as data: it is not an adjudication, award or legal conclusion, it decides no legal claim, and it binds no one unless the parties separately agree. ' +
         'Side effects: writes the result to the dispute record, signed by the ledger; a refund result also logs a PENDING refund entry against the receipt for the claimed amount (not counter-signed into the chain; no payment is checked and no money moves). ' +

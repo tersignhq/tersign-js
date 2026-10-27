@@ -2,7 +2,7 @@
 # This directory is a SNAPSHOT of a private source tree, not a place to author changes.
 # Edit the source, then release; anything committed here is deleted by the next sync, and
 # the fingerprint below is what makes that deletion fail closed instead of happening silently.
-version: 0.6.7
-source_commit: e31c17ed5ce370497beecf67dabac88586841b17
-synced_at: 2026-10-16T23:14:08Z
-tree_sha256: 945d9bd64e5a7cde4ae240bb6849e82a6a4fbac4e4578a2bf6c2d9ff614ac0c5
+version: 0.6.8
+source_commit: 9a6acb0fd81c8b5145a0b9a0e012aeb97ec60de0
+synced_at: 2026-10-27T10:56:01Z
+tree_sha256: 8a60f195878a2f915f007f2076cf4f5b60d4588bf79a40f76181e3dd86b10ad6
